@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import endpoints, dashboard
+from app.api import endpoints, dashboard, admin
 # Create the FastAPI app instance
 app = FastAPI(
     title="Modern Web Portal API",
@@ -26,6 +26,7 @@ app.add_middleware(
 # All routes defined in endpoints.py will be prefixed with /api
 app.include_router(endpoints.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
 # A simple root endpoint to confirm the API is running
 @app.get("/", tags=["Root"])
