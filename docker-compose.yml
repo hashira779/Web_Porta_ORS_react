@@ -1,0 +1,21 @@
+services:
+  # The Backend Service (FastAPI)
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://ors_db:pTT!CT01@10.2.7.252/testing_db
+      - SECRET_KEY=a_very_secret_and_long_random_string_please_change_me_3498ufoij
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+    volumes:
+      - ./backend/app:/app/app
+
+  # The Frontend Service (React + Nginx)
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend

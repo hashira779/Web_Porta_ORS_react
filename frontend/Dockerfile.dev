@@ -1,0 +1,18 @@
+# Start from a Node.js image
+FROM node:18-alpine
+
+# Set the working directory
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy the rest of your code
+COPY . .
+
+# Expose the port for the React dev server
+EXPOSE 3000
+
+# The default command to run
+CMD ["npm", "start"]
