@@ -1,18 +1,27 @@
-// Add a new interface for the Role object
+// src/types.ts
+
+// Defines the shape of a Permission object
+export interface Permission {
+    id: number;
+    name: string;
+    description: string | null;
+}
+
+// Defines the shape of a Role, including its permissions
 export interface Role {
     id: number;
     name: string;
-    description?: string; // Description is optional
+    description: string | null;
+    permissions: Permission[]; // A role can have many permissions
 }
 
-// Update your User interface to include the nested Role
+// Defines the shape of a User, including their full Role object
 export interface User {
     id: number;
     username: string;
     email: string;
     is_active: boolean;
-    role_id: number; // Keep this for when you need to send just the ID
-    role: Role;      // **This is the missing property**
+    role: Role; // A user has one role
 }
 
 // --- Other types ---
@@ -37,4 +46,12 @@ export interface Station {
 export interface DecodedToken {
     sub: string;
     exp: number;
+}
+export interface UserFormData {
+    id?: number;
+    username: string;
+    email: string;
+    password?: string; // Password is optional, only used for creation
+    role_id: number;
+    is_active?: boolean;
 }

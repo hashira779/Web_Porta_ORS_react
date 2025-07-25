@@ -1,8 +1,8 @@
 import axios from 'axios';
 import authService from '../services/auth.service';
-import { User } from '../types';
+import { User, Role, Permission } from '../types';
 
-// Define a type for the dashboard filters for better type safety
+// Define a type for the dashboard filters
 interface FilterParams {
   year?: string | number;
   month?: string | number;
@@ -28,29 +28,30 @@ api.interceptors.request.use((config) => {
 
 export const getMyProfile = () => api.get<User>('/users/me');
 
+// **THIS IS THE MISSING FUNCTION THAT IS NOW ADDED BACK**
 export const getSalesDataByYear = (year: string) => api.get(`/sales/${year}`);
 
-// This function now accepts a filters object
 export const getDashboardData = (filters: FilterParams = {}) => {
-  // Clean up filters to only include active ones
   const activeFilters = Object.entries(filters).reduce((acc, [key, value]) => {
     if (value) {
       acc[key as keyof FilterParams] = value;
     }
     return acc;
   }, {} as FilterParams);
-
-  // Pass the cleaned filters as URL parameters
   return api.get('/dashboard/', { params: activeFilters });
 };
 
-
-// --- Admin API Functions ---
-
+// / --- Admin API Functions ---
 export const adminGetAllUsers = () => api.get<User[]>('/admin/users');
+export const adminCreateUser = (data: any) => api.post<User>('/admin/users', data);
+export const adminUpdateUser = (userId: number, data: any) => api.put<User>(`/admin/users/${userId}`, data);
+export const adminDeleteUser = (userId: number) => api.delete(`/admin/users/${userId}`);
 
-export const adminUpdateUser = (userId: number, userData: { role_id: number; is_active: boolean }) =>
-    api.put(`/admin/users/${userId}`, userData);
-
+export const adminGetRoles = () => api.get<Role[]>('/admin/roles');
+export const adminGetPermissions = () => api.get<Permission[]>('/admin/permissions');
+export const adminCreateRole = (data: { name: string; description?: string | null }) => api.post<Role>('/admin/roles', data);
+export const adminUpdateRole = (roleId: number, data: { name: string; description?: string | null; permission_ids: number[] }) => api.put<Role>(`/admin/roles/${roleId}`, data);
+export const adminDeleteRole = (roleId: number) => api.delete(`/admin/roles/${roleId}`);
+export const adminCreatePermission = (data: { name: string; description?: string | null }) => api.post<Permission>('/admin/permissions', data);
 
 export default api;
