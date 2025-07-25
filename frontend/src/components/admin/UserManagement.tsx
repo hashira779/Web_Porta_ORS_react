@@ -1,5 +1,3 @@
-// frontend/src/components/admin/UserManagement.tsx
-
 import React, { useState, useEffect } from 'react';
 import { adminGetAllUsers, adminUpdateUser, adminCreateUser, adminDeleteUser, adminGetRoles } from '../../api/api';
 import { User, Role, UserFormData } from '../../types';
@@ -13,14 +11,10 @@ import {
     XCircleIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
-    MagnifyingGlassIcon,
-    ExclamationCircleIcon // Add this for warning/error alerts
+    MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import UserModal from './UserModal';
 import Spinner from '../common/CalSpin'; // Assume you have a Spinner component
-
-// Define types for alert messages
-type AlertType = 'success' | 'error' | 'info';
 
 const UserManagement: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -32,23 +26,6 @@ const UserManagement: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const usersPerPage = 10;
-
-    // --- NEW STATES FOR CONFIRMATION MODAL AND ALERTS ---
-    const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
-    const [userToDeleteId, setUserToDeleteId] = useState<number | null>(null);
-    const [alertMessage, setAlertMessage] = useState<string | null>(null);
-    const [alertType, setAlertType] = useState<AlertType | null>(null);
-
-    // Function to show custom alert messages
-    const showAlert = (message: string, type: AlertType) => {
-        setAlertMessage(message);
-        setAlertType(type);
-        // Automatically hide alert after 5 seconds
-        setTimeout(() => {
-            setAlertMessage(null);
-            setAlertType(null);
-        }, 5000);
-    };
 
     // Filter users based on search term
     const filteredUsers = users.filter(user =>
@@ -73,7 +50,6 @@ const UserManagement: React.FC = () => {
             .catch(err => {
                 setError("Failed to fetch user data. Please try again later.");
                 console.error("Error fetching data:", err);
-                showAlert("Failed to load users or roles.", "error"); // Use custom alert
             })
             .finally(() => setLoading(false));
     };
@@ -91,56 +67,28 @@ const UserManagement: React.FC = () => {
             .then(() => {
                 fetchUsersAndRoles();
                 setIsModalOpen(false);
-                showAlert(`User ${userData.username} ${userData.id ? 'updated' : 'created'} successfully!`, "success"); // Custom success alert
             })
             .catch(err => {
+                alert("Failed to save user. Please check the console for details.");
                 console.error("Save user error:", err);
-                // Attempt to get more specific error from backend response
-                const errorMessage = err.response?.data?.detail || "Failed to save user. Please try again.";
-                showAlert(errorMessage, "error"); // Custom error alert
             });
     };
 
-    // --- MODIFIED handleDelete to open custom confirmation modal ---
     const handleDelete = (userId: number) => {
-        setUserToDeleteId(userId);
-        setShowConfirmDeleteModal(true);
-    };
-
-    // --- NEW FUNCTION: Called when user confirms delete in the custom modal ---
-    const handleConfirmDelete = () => {
-        if (userToDeleteId !== null) {
-            adminDeleteUser(userToDeleteId)
-                .then(() => {
-                    fetchUsersAndRoles(); // Refresh user list
-                    setShowConfirmDeleteModal(false); // Close modal
-                    setUserToDeleteId(null); // Clear ID
-                    showAlert("User deleted successfully!", "success"); // Custom success alert
-                })
+        if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+            adminDeleteUser(userId)
+                .then(() => fetchUsersAndRoles())
                 .catch(err => {
+                    alert("Failed to delete user.");
                     console.error("Delete error:", err);
-                    setShowConfirmDeleteModal(false); // Close modal even on error
-                    setUserToDeleteId(null); // Clear ID
-                    // Attempt to get more specific error from backend response
-                    const errorMessage = err.response?.data?.detail || "Failed to delete user. Please try again.";
-                    showAlert(errorMessage, "error"); // Custom error alert
                 });
         }
     };
 
-    // --- NEW FUNCTION: Called when user cancels delete in the custom modal ---
-    const handleCancelDelete = () => {
-        setShowConfirmDeleteModal(false);
-        setUserToDeleteId(null);
-    };
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
         setCurrentPage(1); // Reset to first page when searching
     };
-
-
-    // ... (rest of the component remains the same)
-    // ... (add the custom alert and confirmation modal JSX below)
 
     if (loading) {
         return (
@@ -170,46 +118,6 @@ const UserManagement: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* --- CUSTOM ALERT DISPLAY --- */}
-            <AnimatePresence>
-                {alertMessage && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className={`relative z-50 p-4 rounded-md shadow-lg flex items-center transition-all duration-300
-                            ${alertType === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : ''}
-                            ${alertType === 'error' ? 'bg-red-50 border border-red-200 text-red-800' : ''}
-                            ${alertType === 'info' ? 'bg-blue-50 border border-blue-200 text-blue-800' : ''}
-                        `}
-                        role="alert"
-                    >
-                        <div className="flex-shrink-0">
-                            {alertType === 'success' && <CheckCircleIcon className="h-5 w-5 text-green-400" aria-hidden="true" />}
-                            {alertType === 'error' && <XCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />}
-                            {alertType === 'info' && <ExclamationCircleIcon className="h-5 w-5 text-blue-400" aria-hidden="true" />}
-                        </div>
-                        <div className="ml-3 flex-1 text-sm font-medium">
-                            {alertMessage}
-                        </div>
-                        <div className="ml-auto pl-3">
-                            <button
-                                onClick={() => setAlertMessage(null)}
-                                className={`inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2
-                                    ${alertType === 'success' ? 'text-green-500 hover:bg-green-100 focus:ring-green-600 focus:ring-offset-green-50' : ''}
-                                    ${alertType === 'error' ? 'text-red-500 hover:bg-red-100 focus:ring-red-600 focus:ring-offset-red-50' : ''}
-                                    ${alertType === 'info' ? 'text-blue-500 hover:bg-blue-100 focus:ring-blue-600 focus:ring-offset-blue-50' : ''}
-                                `}
-                            >
-                                <span className="sr-only">Dismiss</span>
-                                <XCircleIcon className="h-5 w-5" aria-hidden="true" />
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ... (Existing Header and Table JSX) ... */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -310,7 +218,7 @@ const UserManagement: React.FC = () => {
                                                 Edit
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(user.id)} // This now opens the custom confirm modal
+                                                onClick={() => handleDelete(user.id)}
                                                 className="text-red-600 hover:text-red-900 flex items-center"
                                             >
                                                 <TrashIcon className="h-4 w-4 mr-1" />
@@ -396,7 +304,7 @@ const UserManagement: React.FC = () => {
                 )}
             </div>
 
-            {/* User Modal (for Create/Edit) */}
+            {/* User Modal */}
             <AnimatePresence>
                 {isModalOpen && (
                     <UserModal
@@ -406,51 +314,6 @@ const UserManagement: React.FC = () => {
                         user={editingUser}
                         roles={roles}
                     />
-                )}
-            </AnimatePresence>
-
-            {/* --- CUSTOM CONFIRMATION MODAL FOR DELETE --- */}
-            <AnimatePresence>
-                {showConfirmDeleteModal && (
-                    <motion.div
-                        className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                    >
-                        <motion.div
-                            className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full relative"
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                        >
-                            <div className="text-center">
-                                <ExclamationCircleIcon className="mx-auto h-12 w-12 text-red-500" />
-                                <h3 className="mt-2 text-lg leading-6 font-medium text-gray-900">Confirm Deletion</h3>
-                                <div className="mt-2">
-                                    <p className="text-sm text-gray-500">
-                                        Are you sure you want to delete this user? This action cannot be undone.
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-                                <button
-                                    type="button"
-                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
-                                    onClick={handleConfirmDelete}
-                                >
-                                    Delete
-                                </button>
-                                <button
-                                    type="button"
-                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
-                                    onClick={handleCancelDelete}
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
                 )}
             </AnimatePresence>
         </div>

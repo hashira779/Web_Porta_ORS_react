@@ -1,11 +1,16 @@
+// frontend/src/pages/SettingsPage.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminGetRoles, adminGetPermissions, adminUpdateRole, adminCreateRole, adminDeleteRole, adminCreatePermission } from '../api/api';
+import { adminGetRoles, adminGetPermissions, adminUpdateRole, adminCreateRole, adminDeleteRole, adminCreatePermission, adminDeletePermission, adminUpdatePermission } from '../api/api';
 import { Role, Permission } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlusIcon, TrashIcon, CheckCircleIcon, ExclamationCircleIcon, ChevronRightIcon, CogIcon, ShieldCheckIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import {
+    PlusIcon, TrashIcon, CheckCircleIcon, ExclamationCircleIcon, ChevronRightIcon,
+    CogIcon, ShieldCheckIcon, UserGroupIcon, PencilIcon
+} from '@heroicons/react/24/outline';
 
-// --- Reusable Components ---
-const Spinner = () => (
+// --- Reusable Components (ensure these are separate files or defined here if simple) ---
+const Spinner: React.FC = () => (
     <div className="flex justify-center items-center">
         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
     </div>
@@ -50,12 +55,15 @@ const PermissionToggle: React.FC<{
         />
         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
         <span className="ml-3 text-sm font-medium text-gray-700">
-      {permission.name}
-    </span>
+            {permission.name}
+        </span>
     </label>
 );
 
-// --- Main Component ---
+import ConfirmationModal from '../components/settings/ConfirmationModal';
+import RoleFormModal from '../components/settings/RoleFormModal';
+import PermissionFormModal from '../components/settings/PermissionFormModal';
+
 const SettingsPage: React.FC = () => {
     // Data states
     const [roles, setRoles] = useState<Role[]>([]);
@@ -66,14 +74,23 @@ const SettingsPage: React.FC = () => {
     // UI states
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [newRoleName, setNewRoleName] = useState('');
-    const [newPermissionName, setNewPermissionName] = useState('');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    // Modals states
+    const [showRoleModal, setShowRoleModal] = useState(false);
+    const [editingRole, setEditingRole] = useState<Role | null>(null);
+
+    const [showPermissionModal, setShowPermissionModal] = useState(false);
+    const [editingPermission, setEditingPermission] = useState<Permission | null>(null);
+
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<{ id: number; type: 'role' | 'permission'; name: string } | null>(null);
 
     const showToast = (message: string, type: 'success' | 'error') => {
         setToast({ message, type });
     };
 
+    // --- MODIFIED fetchData: No longer handles role selection directly ---
     const fetchData = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -85,22 +102,42 @@ const SettingsPage: React.FC = () => {
             setRoles(rolesRes.data);
             setPermissions(permsRes.data);
 
-            if (rolesRes.data.length > 0) {
-                const currentSelected = selectedRole
-                    ? rolesRes.data.find(r => r.id === selectedRole.id)
-                    : rolesRes.data[0];
-                if (currentSelected) handleRoleSelect(currentSelected);
-            }
         } catch (error) {
-            showToast("Failed to load settings data", "error");
+            console.error("Error fetching data:", error);
+            showToast("Failed to load settings data. Please try again.", "error");
         } finally {
             setIsLoading(false);
         }
-    }, [selectedRole]);
+    }, []); // <--- Dependency array is now empty. fetchData is stable.
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
+
+    // --- NEW useEffect for Role Selection Logic ---
+    useEffect(() => {
+        if (roles.length > 0) {
+            // Find the previously selected role in the new list of roles
+            const reselectedRole = selectedRole ? roles.find(r => r.id === selectedRole.id) : null;
+
+            if (reselectedRole) {
+                // If the previously selected role still exists, select it
+                // Only update if the object reference is different to prevent unnecessary re-renders
+                if (reselectedRole !== selectedRole) {
+                    setSelectedRole(reselectedRole);
+                    setSelectedPermissions(new Set(reselectedRole.permissions.map(p => p.id)));
+                }
+            } else {
+                // If no role was previously selected, or the old one was deleted, select the first role
+                setSelectedRole(roles[0]);
+                setSelectedPermissions(new Set(roles[0].permissions.map(p => p.id)));
+            }
+        } else {
+            // No roles available
+            setSelectedRole(null);
+            setSelectedPermissions(new Set());
+        }
+    }, [roles]); // <--- This effect runs when 'roles' data changes (i.e., after fetchData completes)
 
     const handleRoleSelect = (role: Role) => {
         setSelectedRole(role);
@@ -122,46 +159,118 @@ const SettingsPage: React.FC = () => {
             setIsSaving(true);
             const permission_ids = Array.from(selectedPermissions);
             await adminUpdateRole(selectedRole.id, { ...selectedRole, permission_ids });
-            showToast("Role updated successfully!", "success");
+            showToast("Role permissions updated successfully!", "success");
             fetchData();
         } catch (error) {
-            showToast("Failed to save changes", "error");
+            console.error("Failed to save changes:", error);
+            const errorMessage = (error as any).response?.data?.detail || "Failed to save changes.";
+            showToast(errorMessage, "error");
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleCreateRole = async () => {
-        if (!newRoleName.trim()) {
-            showToast("Role name cannot be empty", "error");
-            return;
-        }
+    // --- Role CRUD Handlers ---
+    const handleAddRoleClick = () => {
+        setEditingRole(null);
+        setShowRoleModal(true);
+    };
 
+    const handleEditRoleClick = (role: Role) => {
+        setEditingRole(role);
+        setShowRoleModal(true);
+    };
+
+    const handleDeleteRoleClick = (role: Role) => {
+        setItemToDelete({ id: role.id, type: 'role', name: role.name });
+        setShowConfirmModal(true);
+    };
+
+    const handleRoleSave = async (roleData: { id?: number; name: string; description?: string | null }) => {
         try {
-            await adminCreateRole({ name: newRoleName, description: '' });
-            showToast(`Role "${newRoleName}" created!`, "success");
-            setNewRoleName('');
+            if (roleData.id) {
+                // Update existing role
+                const currentRole = roles.find(r => r.id === roleData.id);
+                if (currentRole) {
+                    await adminUpdateRole(roleData.id, {
+                        ...currentRole,
+                        name: roleData.name,
+                        description: roleData.description,
+                        permission_ids: currentRole.permissions.map(p => p.id)
+                    });
+                    showToast(`Role "${roleData.name}" updated successfully!`, "success");
+                }
+            } else {
+                // Create new role
+                await adminCreateRole({ name: roleData.name, description: roleData.description, permission_ids: [] });
+                showToast(`Role "${roleData.name}" created successfully!`, "success");
+            }
+            setShowRoleModal(false);
             fetchData();
         } catch (error) {
-            showToast("Failed to create role", "error");
+            console.error("Error saving role:", error);
+            const errorMessage = (error as any).response?.data?.detail || "Failed to save role.";
+            showToast(errorMessage, "error");
         }
     };
 
-    const handleCreatePermission = async () => {
-        if (!newPermissionName.trim()) {
-            showToast("Permission name cannot be empty", "error");
-            return;
-        }
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
 
         try {
-            await adminCreatePermission({ name: newPermissionName, description: '' });
-            showToast(`Permission "${newPermissionName}" created!`, "success");
-            setNewPermissionName('');
+            if (itemToDelete.type === 'role') {
+                await adminDeleteRole(itemToDelete.id);
+                showToast(`Role "${itemToDelete.name}" deleted successfully!`, "success");
+            } else if (itemToDelete.type === 'permission') {
+                await adminDeletePermission(itemToDelete.id);
+                showToast(`Permission "${itemToDelete.name}" deleted successfully!`, "success");
+            }
+            setShowConfirmModal(false);
+            setItemToDelete(null);
             fetchData();
         } catch (error) {
-            showToast("Failed to create permission", "error");
+            console.error("Error deleting item:", error);
+            const errorMessage = (error as any).response?.data?.detail || "Failed to delete item. It might have associated data.";
+            showToast(errorMessage, "error");
+            setShowConfirmModal(false);
+            setItemToDelete(null);
         }
     };
+
+    // --- Permission CRUD Handlers ---
+    const handleAddPermissionClick = () => {
+        setEditingPermission(null);
+        setShowPermissionModal(true);
+    };
+
+    const handleEditPermissionClick = (permission: Permission) => {
+        setEditingPermission(permission);
+        setShowPermissionModal(true);
+    };
+
+    const handleDeletePermissionClick = (permission: Permission) => {
+        setItemToDelete({ id: permission.id, type: 'permission', name: permission.name });
+        setShowConfirmModal(true);
+    };
+
+    const handlePermissionSave = async (permissionData: { id?: number; name: string; description?: string | null }) => {
+        try {
+            if (permissionData.id) {
+                await adminUpdatePermission(permissionData.id, permissionData);
+                showToast(`Permission "${permissionData.name}" updated successfully!`, "success");
+            } else {
+                await adminCreatePermission(permissionData);
+                showToast(`Permission "${permissionData.name}" created successfully!`, "success");
+            }
+            setShowPermissionModal(false);
+            fetchData();
+        } catch (error) {
+            console.error("Error saving permission:", error);
+            const errorMessage = (error as any).response?.data?.detail || "Failed to save permission.";
+            showToast(errorMessage, "error");
+        }
+    };
+
 
     if (isLoading) {
         return (
@@ -197,81 +306,103 @@ const SettingsPage: React.FC = () => {
                 {/* Roles Panel */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+                        <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                             <h2 className="text-lg font-semibold text-gray-800 flex items-center">
                                 <UserGroupIcon className="w-5 h-5 mr-2 text-indigo-600" />
                                 Roles
                             </h2>
+                            <button
+                                onClick={handleAddRoleClick}
+                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                <PlusIcon className="h-4 w-4 mr-1" /> New
+                            </button>
                         </div>
                         <div className="divide-y divide-gray-200">
-                            {roles.map((role) => (
-                                <button
-                                    key={role.id}
-                                    onClick={() => handleRoleSelect(role)}
-                                    className={`w-full px-5 py-3 text-left flex items-center justify-between transition-colors ${
-                                        selectedRole?.id === role.id
-                                            ? 'bg-indigo-50 text-indigo-700'
-                                            : 'hover:bg-gray-50 text-gray-700'
-                                    }`}
-                                >
-                                    <span className="font-medium">{role.name}</span>
-                                    <ChevronRightIcon className="w-4 h-4" />
-                                </button>
-                            ))}
-                        </div>
-                        <div className="px-5 py-4 border-t border-gray-200 bg-gray-50">
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">
-                                Create New Role
-                            </h3>
-                            <div className="flex rounded-md shadow-sm">
-                                <input
-                                    type="text"
-                                    value={newRoleName}
-                                    onChange={(e) => setNewRoleName(e.target.value)}
-                                    placeholder="Enter role name..."
-                                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                />
-                                <button
-                                    onClick={handleCreateRole}
-                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-r-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                >
-                                    <PlusIcon className="h-4 w-4" />
-                                </button>
-                            </div>
+                            {roles.length > 0 ? (
+                                roles.map((role) => (
+                                    <div key={role.id} className="flex items-center justify-between">
+                                        <button
+                                            onClick={() => handleRoleSelect(role)}
+                                            className={`flex-1 px-5 py-3 text-left flex items-center justify-between transition-colors ${
+                                                selectedRole?.id === role.id
+                                                    ? 'bg-indigo-50 text-indigo-700'
+                                                    : 'hover:bg-gray-50 text-gray-700'
+                                            }`}
+                                        >
+                                            <span className="font-medium">{role.name}</span>
+                                            <ChevronRightIcon className="w-4 h-4" />
+                                        </button>
+                                        <div className="flex-shrink-0 flex space-x-2 px-3">
+                                            <button
+                                                onClick={() => handleEditRoleClick(role)}
+                                                className="text-indigo-600 hover:text-indigo-900"
+                                                title="Edit Role"
+                                            >
+                                                <PencilIcon className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteRoleClick(role)}
+                                                className="text-red-600 hover:text-red-900"
+                                                title="Delete Role"
+                                            >
+                                                <TrashIcon className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-5 text-center text-gray-500 text-sm">No roles created yet.</div>
+                            )}
                         </div>
                     </div>
 
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
+                        <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                             <h2 className="text-lg font-semibold text-gray-800 flex items-center">
                                 <CogIcon className="w-5 h-5 mr-2 text-indigo-600" />
                                 Permissions
                             </h2>
+                            <button
+                                onClick={handleAddPermissionClick}
+                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            >
+                                <PlusIcon className="h-4 w-4 mr-1" /> New
+                            </button>
                         </div>
-                        <div className="px-5 py-4">
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">
-                                Create New Permission
-                            </h3>
-                            <div className="flex rounded-md shadow-sm">
-                                <input
-                                    type="text"
-                                    value={newPermissionName}
-                                    onChange={(e) => setNewPermissionName(e.target.value)}
-                                    placeholder="e.g., reports:export"
-                                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                />
-                                <button
-                                    onClick={handleCreatePermission}
-                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-r-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                                >
-                                    <PlusIcon className="h-4 w-4" />
-                                </button>
-                            </div>
+                        <div className="divide-y divide-gray-200">
+                            {permissions.length > 0 ? (
+                                permissions.map((permission) => (
+                                    <div key={permission.id} className="flex items-center justify-between">
+                                        <div className="flex-1 px-5 py-3 text-left flex items-center transition-colors hover:bg-gray-50 text-gray-700">
+                                            <span className="font-medium">{permission.name}</span>
+                                        </div>
+                                        <div className="flex-shrink-0 flex space-x-2 px-3">
+                                            <button
+                                                onClick={() => handleEditPermissionClick(permission)}
+                                                className="text-indigo-600 hover:text-indigo-900"
+                                                title="Edit Permission"
+                                            >
+                                                <PencilIcon className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeletePermissionClick(permission)}
+                                                className="text-red-600 hover:text-red-900"
+                                                title="Delete Permission"
+                                            >
+                                                <TrashIcon className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-5 text-center text-gray-500 text-sm">No permissions created yet.</div>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Permissions Editor */}
+                {/* Permissions Editor for selected role */}
                 <div className="lg:col-span-3">
                     {selectedRole ? (
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -339,6 +470,37 @@ const SettingsPage: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* --- Modals for Role/Permission CRUD --- */}
+            <AnimatePresence>
+                {showRoleModal && (
+                    <RoleFormModal
+                        isOpen={showRoleModal}
+                        onClose={() => setShowRoleModal(false)}
+                        onSave={handleRoleSave}
+                        role={editingRole}
+                    />
+                )}
+                {showPermissionModal && (
+                    <PermissionFormModal
+                        isOpen={showPermissionModal}
+                        onClose={() => setShowPermissionModal(false)}
+                        onSave={handlePermissionSave}
+                        permission={editingPermission}
+                    />
+                )}
+                {showConfirmModal && itemToDelete && (
+                    <ConfirmationModal
+                        isOpen={showConfirmModal}
+                        onClose={() => setShowConfirmModal(false)}
+                        onConfirm={handleConfirmDelete}
+                        title={`Delete ${itemToDelete.type === 'role' ? 'Role' : 'Permission'}`}
+                        message={`Are you sure you want to delete the ${itemToDelete.type} "${itemToDelete.name}"? This action cannot be undone.`}
+                        confirmButtonText="Delete"
+                        confirmButtonColor="red"
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };

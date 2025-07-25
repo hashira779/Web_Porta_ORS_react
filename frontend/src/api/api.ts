@@ -28,7 +28,6 @@ api.interceptors.request.use((config) => {
 
 export const getMyProfile = () => api.get<User>('/users/me');
 
-// **THIS IS THE MISSING FUNCTION THAT IS NOW ADDED BACK**
 export const getSalesDataByYear = (year: string) => api.get(`/sales/${year}`);
 
 export const getDashboardData = (filters: FilterParams = {}) => {
@@ -49,9 +48,13 @@ export const adminDeleteUser = (userId: number) => api.delete(`/admin/users/${us
 
 export const adminGetRoles = () => api.get<Role[]>('/admin/roles');
 export const adminGetPermissions = () => api.get<Permission[]>('/admin/permissions');
-export const adminCreateRole = (data: { name: string; description?: string | null }) => api.post<Role>('/admin/roles', data);
+// --- THIS LINE HAS BEEN FIXED ---
+export const adminCreateRole = (data: { name: string; description?: string | null; permission_ids: number[] }) => api.post<Role>('/admin/roles', data);
+// --- END FIXED LINE ---
 export const adminUpdateRole = (roleId: number, data: { name: string; description?: string | null; permission_ids: number[] }) => api.put<Role>(`/admin/roles/${roleId}`, data);
 export const adminDeleteRole = (roleId: number) => api.delete(`/admin/roles/${roleId}`);
 export const adminCreatePermission = (data: { name: string; description?: string | null }) => api.post<Permission>('/admin/permissions', data);
+export const adminUpdatePermission = (permissionId: number, data: { name: string; description?: string | null }) => api.put<Permission>(`/admin/permissions/${permissionId}`, data);
+export const adminDeletePermission = (permissionId: number) => api.delete(`/admin/permissions/${permissionId}`);
 
 export default api;
