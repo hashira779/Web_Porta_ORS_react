@@ -47,11 +47,19 @@ def update_user(user_id: int, user_update: user_schema.UserUpdate, db: Session =
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin - Users"])
 def delete_user(user_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
+    print(f"DEBUG: DELETE request received for user_id: {user_id}") # Add this
     db_user = db.query(user_model.UserDB).filter(user_model.UserDB.id == user_id).first()
     if not db_user:
+        print(f"DEBUG: User with ID {user_id} not found in DB.") # Add this
         raise HTTPException(status_code=404, detail="User not found")
-    db.delete(db_user)
-    db.commit()
+    try:
+        db.delete(db_user)
+        db.commit()
+        print(f"DEBUG: Successfully deleted user with ID: {user_id}") # Add this
+    except Exception as e:
+        db.rollback() # Rollback in case of error
+        print(f"ERROR: Failed to delete user {user_id}. Exception: {e}") # Add this for detailed error
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete user: {e}")
     return
 
 # === ROLE & PERMISSION MANAGEMENT ===
