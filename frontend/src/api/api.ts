@@ -72,5 +72,9 @@ export const adminAssignStationsToArea = (areaId: number, stationIds: number[]) 
 export const adminAssignOwnersToStation = (stationId: number, ownerIds: number[]) =>
     api.put(`/admin/assignments/stations/${stationId}/owners`, { owner_ids: ownerIds });
 
+// --- NEW: Function to assign stations to an owner ---
+export const adminAssignStationsToOwner = (userId: number, stationIds: number[]) =>
+    api.put<User>(`/admin/assignments/users/${userId}/stations`, { station_ids: stationIds });
+
 
 export default api;

@@ -19,9 +19,11 @@ export interface Area {
     name: string;
 }
 
+// CORRECTED: StationInfo now includes the 'owners' array
 export interface StationInfo {
     id: number;
-    station_name: string; // Matches the backend model's column name
+    station_name: string;
+    owners: User[]; // Each station object now knows its owners
 }
 
 export interface User {

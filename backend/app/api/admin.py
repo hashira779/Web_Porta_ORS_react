@@ -105,9 +105,10 @@ def get_all_permissions(db: Session = Depends(get_db), admin: user_model.User = 
 def get_area_details(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
     return db.query(station_model.Area).options(joinedload(station_model.Area.stations), joinedload(station_model.Area.managers)).all()
 
+# CORRECTED: This now loads the 'owners' relationship for each station
 @router.get("/stations", response_model=List[station_schema.Station], tags=["Admin - Assignments"])
 def get_all_stations(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
-    return db.query(station_model.Station).all()
+    return db.query(station_model.Station).options(joinedload(station_model.Station.owners)).all()
 
 @router.post("/areas", response_model=station_schema.Area, tags=["Admin - Assignments"])
 def create_area(area: station_schema.AreaBase, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
@@ -169,22 +170,25 @@ def get_area_details(db: Session = Depends(get_db), admin: user_model.User = Dep
         joinedload(station_model.Area.managers)
     ).all()
 
-# --- NEW: Endpoint to assign owners to a station ---
-@router.put("/assignments/stations/{station_id}/owners", response_model=station_schema.Station, tags=["Admin - Assignments"])
-def assign_owners_to_station(
-        station_id: int,
-        payload: station_schema.OwnerAssignment, # We will create this schema next
+# --- NEW: Endpoint to assign stations to a specific owner ---
+@router.put("/assignments/users/{user_id}/stations", response_model=user_schema.User, tags=["Admin - Assignments"])
+def assign_stations_to_owner(
+        user_id: int,
+        payload: station_schema.StationAssignment,
         db: Session = Depends(get_db),
         admin: user_model.User = Depends(get_current_admin_user)
 ):
-    """Assigns a list of users (Owners) to a specific station."""
-    station = db.query(station_model.Station).options(joinedload(station_model.Station.owners)).get(station_id)
-    if not station:
-        raise HTTPException(status_code=404, detail="Station not found")
+    """Assigns a list of stations to a specific user (owner)."""
+    user = db.query(user_model.User).options(joinedload(user_model.User.owned_stations)).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    owners = db.query(user_model.User).filter(user_model.User.id.in_(payload.owner_ids)).all()
-    station.owners = owners
+    if not user.role or user.role.name.lower() != 'owner':
+        raise HTTPException(status_code=400, detail="User is not an owner")
+
+    stations = db.query(station_model.Station).filter(station_model.Station.id.in_(payload.station_ids)).all()
+    user.owned_stations = stations
 
     db.commit()
-    db.refresh(station)
-    return station
+    db.refresh(user)
+    return user
