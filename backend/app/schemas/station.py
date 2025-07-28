@@ -49,3 +49,7 @@ class StationAssignment(BaseModel):
 
 class ManagerAssignment(BaseModel):
     manager_ids: List[int]
+
+# --- NEW: Schema for assigning owners ---
+class OwnerAssignment(BaseModel):
+    owner_ids: List[int]

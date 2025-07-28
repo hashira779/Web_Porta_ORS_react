@@ -68,4 +68,9 @@ export const adminAssignManagersToArea = (areaId: number, managerIds: number[]) 
 export const adminAssignStationsToArea = (areaId: number, stationIds: number[]) =>
     api.put<AreaDetail>(`/admin/assignments/areas/${areaId}/stations`, { station_ids: stationIds });
 
+
+export const adminAssignOwnersToStation = (stationId: number, ownerIds: number[]) =>
+    api.put(`/admin/assignments/stations/${stationId}/owners`, { owner_ids: ownerIds });
+
+
 export default api;

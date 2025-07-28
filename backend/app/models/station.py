@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
+# CORRECTED: Import association tables from .user where they are defined
 from .user import user_area_association, user_station_association
 
 class Area(Base):
@@ -20,7 +21,7 @@ class Station(Base):
     AM_Control = Column(Text)
     active = Column(Boolean, default=True)
 
-    area_id = Column(Integer, ForeignKey('areas_tb.id'), nullable=True) # CORRECTED FK
+    area_id = Column(Integer, ForeignKey('areas_tb.id'), nullable=True)
     area = relationship('Area', back_populates='stations')
 
     owners = relationship("User", secondary=user_station_association, back_populates="owned_stations")

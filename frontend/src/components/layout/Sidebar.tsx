@@ -57,6 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         { to: "/admin", icon: UserGroupIcon, label: "Admin", adminOnly: true },
         { to: "/settings", icon: Cog6ToothIcon, label: "Settings", adminOnly: true },
         { to: "/assign", icon: FolderOpenIcon, label: "Assignments", adminOnly: true },
+        { to: "/StationAssignmentsPage", icon: FolderOpenIcon, label: "StationAssignmentsPage", adminOnly: true },
         { to: "/notifications", icon: BellIcon, label: "Notifications" },
         { to: "/help", icon: QuestionMarkCircleIcon, label: "Help" }
     ];

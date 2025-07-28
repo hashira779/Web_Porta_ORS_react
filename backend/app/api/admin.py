@@ -24,12 +24,15 @@ def create_user(user: user_schema.UserCreate, db: Session = Depends(get_db), adm
     if db_user_by_username:
         raise HTTPException(status_code=400, detail="Username already registered")
 
-    # Not checking email in DB as it doesn't exist in the model
+    db_user_by_email = db.query(user_model.User).filter(user_model.User.email == user.email).first()
+    if db_user_by_email:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed_password = get_password_hash(user.password)
-    # CORRECTED: Do not pass email to the User model constructor
+    # CORRECTED: Added the 'email' field to the model constructor
     new_user = user_model.User(
         username=user.username,
+        email=user.email,
         hashed_password=hashed_password,
         role_id=user.role_id,
         is_active=True
@@ -37,11 +40,7 @@ def create_user(user: user_schema.UserCreate, db: Session = Depends(get_db), adm
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-
-    # Manually add email to the response object since it's in the schema but not the DB model
-    response_user = user_schema.User.from_orm(new_user)
-    response_user.email = user.email
-    return response_user
+    return new_user
 
 @router.put("/users/{user_id}", response_model=user_schema.User, tags=["Admin - Users"])
 def update_user(user_id: int, user_update: user_schema.UserUpdate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
@@ -169,3 +168,23 @@ def get_area_details(db: Session = Depends(get_db), admin: user_model.User = Dep
         joinedload(station_model.Area.stations),
         joinedload(station_model.Area.managers)
     ).all()
+
+# --- NEW: Endpoint to assign owners to a station ---
+@router.put("/assignments/stations/{station_id}/owners", response_model=station_schema.Station, tags=["Admin - Assignments"])
+def assign_owners_to_station(
+        station_id: int,
+        payload: station_schema.OwnerAssignment, # We will create this schema next
+        db: Session = Depends(get_db),
+        admin: user_model.User = Depends(get_current_admin_user)
+):
+    """Assigns a list of users (Owners) to a specific station."""
+    station = db.query(station_model.Station).options(joinedload(station_model.Station.owners)).get(station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    owners = db.query(user_model.User).filter(user_model.User.id.in_(payload.owner_ids)).all()
+    station.owners = owners
+
+    db.commit()
+    db.refresh(station)
+    return station

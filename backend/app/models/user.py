@@ -5,7 +5,7 @@ from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
 # --- ASSOCIATION TABLES ---
-# CORRECTED: ForeignKeys now point to the correct table names.
+# This is the single source of truth for these relationship tables.
 role_permission_association = Table(
     'role_permissions', Base.metadata,
     Column('role_id', Integer, ForeignKey('roles.id'), primary_key=True),
@@ -23,7 +23,6 @@ user_station_association = Table(
     Column('user_id', Integer, ForeignKey('users_tb.id'), primary_key=True),
     Column('station_id', Integer, ForeignKey('station_info.id'), primary_key=True)
 )
-# --- END ASSOCIATION TABLES ---
 
 class User(Base):
     __tablename__ = 'users_tb'

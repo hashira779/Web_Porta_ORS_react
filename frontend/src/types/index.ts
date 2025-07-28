@@ -93,3 +93,7 @@ export interface DecodedToken {
     sub: string;
     exp: number;
 }
+// --- NEW: Detailed Station model including its owners ---
+export interface StationDetail extends StationInfo {
+    owners: User[];
+}

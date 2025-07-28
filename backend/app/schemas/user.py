@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from .role import Role
 
@@ -8,7 +8,7 @@ class Token(BaseModel):
 
 class UserBase(BaseModel):
     username: str
-    email: str # We keep email for creation and response, but not in the DB model
+    email: str
 
 class UserCreate(UserBase):
     password: str
@@ -24,15 +24,22 @@ class AreaSimple(BaseModel):
     name: str
     class Config: from_attributes = True
 
+# --- CORRECTED SCHEMA ---
 class StationSimple(BaseModel):
     id: int
-    name: str
-    class Config: from_attributes = True
+    # This alias tells Pydantic to read from the 'station_name' attribute
+    # of the SQLAlchemy model, but output it as 'name' in the JSON.
+    name: str = Field(alias='station_name')
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True # This is required for the alias to work
 
 class User(UserBase):
     id: int
     is_active: bool
     role: Optional[Role] = None
     managed_areas: List[AreaSimple] = []
-    owned_stations: List[StationSimple] = []
-    class Config: from_attributes = True
+    owned_stations: List[StationSimple] = [] # This will now work correctly
+    class Config:
+        from_attributes = True

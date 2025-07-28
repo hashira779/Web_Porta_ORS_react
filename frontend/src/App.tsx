@@ -8,6 +8,7 @@ import ReportPage from './pages/ReportPage';
 import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
 import Assign from './pages/AreaAssignmentsPage';
+import StationAssignmentsPage from './pages/StationAssignmentsPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = authService.getCurrentUserToken();
@@ -27,6 +28,7 @@ const App: React.FC = () => {
         <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/assign" element={<ProtectedRoute><Assign /></ProtectedRoute>} />
+        <Route path="/StationAssignmentsPage" element={<ProtectedRoute><StationAssignmentsPage /></ProtectedRoute>} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
       </Routes>
     </Router>
