@@ -1,44 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.db.session import get_db
-from app.models import user as user_model, role as role_model
-from app.schemas import user as user_schema, role as role_schema
-from app.core import security
-from app.api.endpoints import get_current_active_user
+from app.models import user as user_model, role as role_model, station as station_model
+from app.schemas import user as user_schema, role as role_schema, station as station_schema
+from app.core.security import get_current_active_user, get_password_hash
 
 router = APIRouter()
 
-# --- Admin-only Dependency ---
-def get_current_admin_user(current_user: user_model.UserDB = Depends(get_current_active_user)):
+def get_current_admin_user(current_user: user_model.User = Depends(get_current_active_user)):
     if not current_user.role or current_user.role.name.lower() != 'admin':
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not an admin")
     return current_user
 
-# === USER MANAGEMENT ===
-@router.post("/users", response_model=user_schema.User, status_code=status.HTTP_201_CREATED, tags=["Admin - Users"])
-def create_user(user: user_schema.UserCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    db_user = db.query(user_model.UserDB).filter(user_model.UserDB.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = security.get_password_hash(user.password)
-    new_user = user_model.UserDB(**user.dict(exclude={'password'}), hashed_password=hashed_password, is_active=True)
+@router.get("/users", response_model=List[user_schema.User], tags=["Admin - Users"])
+def get_all_users(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    return db.query(user_model.User).options(joinedload(user_model.User.role)).all()
+
+@router.post("/users", response_model=user_schema.User, tags=["Admin - Users"])
+def create_user(user: user_schema.UserCreate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_user_by_username = db.query(user_model.User).filter(user_model.User.username == user.username).first()
+    if db_user_by_username:
+        raise HTTPException(status_code=400, detail="Username already registered")
+
+    # Not checking email in DB as it doesn't exist in the model
+
+    hashed_password = get_password_hash(user.password)
+    # CORRECTED: Do not pass email to the User model constructor
+    new_user = user_model.User(
+        username=user.username,
+        hashed_password=hashed_password,
+        role_id=user.role_id,
+        is_active=True
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
 
-@router.get("/users", response_model=List[user_schema.User], tags=["Admin - Users"])
-def read_users(db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    return db.query(user_model.UserDB).all()
+    # Manually add email to the response object since it's in the schema but not the DB model
+    response_user = user_schema.User.from_orm(new_user)
+    response_user.email = user.email
+    return response_user
 
 @router.put("/users/{user_id}", response_model=user_schema.User, tags=["Admin - Users"])
-def update_user(user_id: int, user_update: user_schema.UserUpdate, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    db_user = db.query(user_model.UserDB).filter(user_model.UserDB.id == user_id).first()
+def update_user(user_id: int, user_update: user_schema.UserUpdate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_user = db.query(user_model.User).get(user_id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    update_data = user_update.dict(exclude_unset=True)
+    update_data = user_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_user, key, value)
     db.commit()
@@ -46,68 +56,116 @@ def update_user(user_id: int, user_update: user_schema.UserUpdate, db: Session =
     return db_user
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin - Users"])
-def delete_user(user_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    print(f"DEBUG: DELETE request received for user_id: {user_id}") # Add this
-    db_user = db.query(user_model.UserDB).filter(user_model.UserDB.id == user_id).first()
+def delete_user(user_id: int, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_user = db.query(user_model.User).get(user_id)
     if not db_user:
-        print(f"DEBUG: User with ID {user_id} not found in DB.") # Add this
         raise HTTPException(status_code=404, detail="User not found")
-    try:
-        db.delete(db_user)
-        db.commit()
-        print(f"DEBUG: Successfully deleted user with ID: {user_id}") # Add this
-    except Exception as e:
-        db.rollback() # Rollback in case of error
-        print(f"ERROR: Failed to delete user {user_id}. Exception: {e}") # Add this for detailed error
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete user: {e}")
+    db.delete(db_user)
+    db.commit()
     return
 
-# === ROLE & PERMISSION MANAGEMENT ===
-@router.post("/roles", response_model=role_schema.Role, status_code=status.HTTP_201_CREATED, tags=["Admin - Roles"])
-def create_role(role: role_schema.RoleCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    permissions = db.query(role_model.Permission).filter(role_model.Permission.id.in_(role.permission_ids)).all()
-    new_role = role_model.Role(name=role.name, description=role.description, permissions=permissions)
+@router.get("/roles", response_model=List[role_schema.Role], tags=["Admin - Roles"])
+def get_all_roles(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    return db.query(role_model.Role).options(joinedload(role_model.Role.permissions)).all()
+
+@router.post("/roles", response_model=role_schema.Role, tags=["Admin - Roles"])
+def create_role(role: role_schema.RoleBase, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    new_role = role_model.Role(**role.model_dump())
     db.add(new_role)
     db.commit()
     db.refresh(new_role)
     return new_role
 
-# **CORRECTED: REMOVED DUPLICATE FUNCTION**
-@router.get("/roles", response_model=List[role_schema.Role], tags=["Admin - Roles"])
-def get_all_roles(db: Session = Depends(get_db), admin_user: user_model.UserDB = Depends(get_current_admin_user)):
-    return db.query(role_model.Role).all()
-
 @router.put("/roles/{role_id}", response_model=role_schema.Role, tags=["Admin - Roles"])
-def update_role(role_id: int, role_update: role_schema.RoleUpdate, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    db_role = db.query(role_model.Role).filter(role_model.Role.id == role_id).first()
+def update_role(role_id: int, role_update: role_schema.RoleDetailsUpdate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_role = db.query(role_model.Role).get(role_id)
     if not db_role:
         raise HTTPException(status_code=404, detail="Role not found")
-
     db_role.name = role_update.name
     db_role.description = role_update.description
-    permissions = db.query(role_model.Permission).filter(role_model.Permission.id.in_(role_update.permission_ids)).all()
-    db_role.permissions = permissions
     db.commit()
     db.refresh(db_role)
     return db_role
 
-@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin - Roles"])
-def delete_role(role_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    db_role = db.query(role_model.Role).filter(role_model.Role.id == role_id).first()
-    if not db_role:
+@router.post("/roles/{role_id}/permissions", response_model=role_schema.Role, tags=["Admin - Roles"])
+def update_role_permissions(role_id: int, permissions_update: role_schema.RoleUpdate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    role = db.query(role_model.Role).get(role_id)
+    if not role:
         raise HTTPException(status_code=404, detail="Role not found")
-    db.delete(db_role)
+    permissions = db.query(role_model.Permission).filter(role_model.Permission.id.in_(permissions_update.permission_ids)).all()
+    role.permissions = permissions
+    db.commit()
+    db.refresh(role)
+    return role
+
+@router.get("/permissions", response_model=List[role_schema.Permission], tags=["Admin - Roles"])
+def get_all_permissions(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    return db.query(role_model.Permission).all()
+
+@router.get("/areas/details", response_model=List[station_schema.Area], tags=["Admin - Assignments"])
+def get_area_details(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    return db.query(station_model.Area).options(joinedload(station_model.Area.stations), joinedload(station_model.Area.managers)).all()
+
+@router.get("/stations", response_model=List[station_schema.Station], tags=["Admin - Assignments"])
+def get_all_stations(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    return db.query(station_model.Station).all()
+
+@router.post("/areas", response_model=station_schema.Area, tags=["Admin - Assignments"])
+def create_area(area: station_schema.AreaBase, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_area = station_model.Area(**area.model_dump())
+    db.add(db_area)
+    db.commit()
+    db.refresh(db_area)
+    return db_area
+
+# --- NEW: Update Area Endpoint ---
+@router.put("/areas/{area_id}", response_model=station_schema.Area, tags=["Admin - Assignments"])
+def update_area(area_id: int, area_update: station_schema.AreaUpdate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_area = db.query(station_model.Area).get(area_id)
+    if not db_area:
+        raise HTTPException(status_code=404, detail="Area not found")
+    db_area.name = area_update.name
+    db.commit()
+    db.refresh(db_area)
+    return db_area
+
+# --- NEW: Delete Area Endpoint ---
+@router.delete("/areas/{area_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin - Assignments"])
+def delete_area(area_id: int, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_area = db.query(station_model.Area).get(area_id)
+    if not db_area:
+        raise HTTPException(status_code=404, detail="Area not found")
+    db.delete(db_area)
     db.commit()
     return
 
-@router.post("/permissions", response_model=role_schema.Permission, status_code=status.HTTP_201_CREATED, tags=["Admin - Roles"])
-def create_permission(permission: role_schema.PermissionCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
-    new_permission = role_model.Permission(**permission.dict())
-    db.add(new_permission)
+@router.put("/assignments/areas/{area_id}/managers", response_model=station_schema.Area, tags=["Admin - Assignments"])
+def assign_managers_to_area(area_id: int, payload: station_schema.ManagerAssignment, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    area = db.query(station_model.Area).options(joinedload(station_model.Area.managers)).get(area_id)
+    if not area: raise HTTPException(status_code=404, detail="Area not found")
+    managers = db.query(user_model.User).filter(user_model.User.id.in_(payload.manager_ids)).all()
+    area.managers = managers
     db.commit()
-    db.refresh(new_permission)
-    return new_permission
+    db.refresh(area)
+    return area
 
-@router.get("/permissions", response_model=List[role_schema.Permission], tags=["Admin - Roles"])
-def get_all_permissions(db: Session = Depends(get_db), admin_user: user_model.UserDB = Depends(get_current_admin_user)):
-    return db.query(role_model.Permission).all()
+@router.put("/assignments/areas/{area_id}/stations", response_model=station_schema.Area, tags=["Admin - Assignments"])
+def assign_stations_to_area(area_id: int, payload: station_schema.StationAssignment, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    area = db.query(station_model.Area).get(area_id)
+    if not area: raise HTTPException(status_code=404, detail="Area not found")
+
+    # Unassign all stations currently in this area
+    db.query(station_model.Station).filter(station_model.Station.area_id == area_id).update({"area_id": None})
+
+    # Assign new stations to this area
+    db.query(station_model.Station).filter(station_model.Station.id.in_(payload.station_ids)).update({"area_id": area_id}, synchronize_session=False)
+
+    db.commit()
+    db.refresh(area)
+    return area
+@router.get("/areas/details", response_model=List[station_schema.Area], tags=["Admin - Assignments"])
+def get_area_details(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    return db.query(station_model.Area).options(
+        joinedload(station_model.Area.stations),
+        joinedload(station_model.Area.managers)
+    ).all()

@@ -1,8 +1,20 @@
 import axios from 'axios';
 import authService from '../services/auth.service';
-import { User, Role, Permission } from '../types';
+import {
+  User,
+  Role,
+  Permission,
+  AreaDetail,
+  StationInfo,
+  UserCreate,
+  UserUpdate,
+  RoleUpdate,
+  RoleDetailsUpdate,
+  PermissionCreate,
+  Sale,
+  AreaUpdate
+} from '../types';
 
-// Define a type for the dashboard filters
 interface FilterParams {
   year?: string | number;
   month?: string | number;
@@ -10,51 +22,50 @@ interface FilterParams {
   id_type?: string;
 }
 
-const api = axios.create({
-  baseURL: '/api',
-});
+const api = axios.create({ baseURL: '/api' });
 
-// Attaches the JWT token to every outgoing request
 api.interceptors.request.use((config) => {
   const token = authService.getCurrentUserToken();
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
   return config;
-}, (error) => Promise.reject(error));
+});
 
-
-// --- General API Functions ---
-
+// --- General Functions ---
 export const getMyProfile = () => api.get<User>('/users/me');
-
-export const getSalesDataByYear = (year: string) => api.get(`/sales/${year}`);
-
+export const getSalesDataByYear = (year: string) => api.get<Sale[]>(`/sales/${year}`);
 export const getDashboardData = (filters: FilterParams = {}) => {
-  const activeFilters = Object.entries(filters).reduce((acc, [key, value]) => {
-    if (value) {
-      acc[key as keyof FilterParams] = value;
-    }
-    return acc;
-  }, {} as FilterParams);
-  return api.get('/dashboard/', { params: activeFilters });
+  const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v).map(([k, v]) => [k, String(v)]));
+  return api.get('/dashboard/', { params });
 };
 
-// / --- Admin API Functions ---
+// --- Admin Functions ---
 export const adminGetAllUsers = () => api.get<User[]>('/admin/users');
-export const adminCreateUser = (data: any) => api.post<User>('/admin/users', data);
-export const adminUpdateUser = (userId: number, data: any) => api.put<User>(`/admin/users/${userId}`, data);
+export const adminCreateUser = (data: UserCreate) => api.post<User>('/admin/users', data);
+export const adminUpdateUser = (userId: number, data: UserUpdate) => api.put<User>(`/admin/users/${userId}`, data);
 export const adminDeleteUser = (userId: number) => api.delete(`/admin/users/${userId}`);
 
 export const adminGetRoles = () => api.get<Role[]>('/admin/roles');
-export const adminGetPermissions = () => api.get<Permission[]>('/admin/permissions');
-// --- THIS LINE HAS BEEN FIXED ---
-export const adminCreateRole = (data: { name: string; description?: string | null; permission_ids: number[] }) => api.post<Role>('/admin/roles', data);
-// --- END FIXED LINE ---
-export const adminUpdateRole = (roleId: number, data: { name: string; description?: string | null; permission_ids: number[] }) => api.put<Role>(`/admin/roles/${roleId}`, data);
+export const adminCreateRole = (data: { name: string; description?: string | null; }) => api.post<Role>('/admin/roles', data);
+export const adminUpdateRole = (roleId: number, data: RoleDetailsUpdate) => api.put<Role>(`/admin/roles/${roleId}`, data);
+export const adminUpdateRolePermissions = (roleId: number, data: RoleUpdate) => api.post<Role>(`/admin/roles/${roleId}/permissions`, data);
 export const adminDeleteRole = (roleId: number) => api.delete(`/admin/roles/${roleId}`);
-export const adminCreatePermission = (data: { name: string; description?: string | null }) => api.post<Permission>('/admin/permissions', data);
-export const adminUpdatePermission = (permissionId: number, data: { name: string; description?: string | null }) => api.put<Permission>(`/admin/permissions/${permissionId}`, data);
+
+export const adminGetPermissions = () => api.get<Permission[]>('/admin/permissions');
+export const adminCreatePermission = (data: PermissionCreate) => api.post<Permission>('/admin/permissions', data);
+export const adminUpdatePermission = (permissionId: number, data: PermissionCreate) => api.put<Permission>(`/admin/permissions/${permissionId}`, data);
 export const adminDeletePermission = (permissionId: number) => api.delete(`/admin/permissions/${permissionId}`);
+
+// --- Area and Assignment Functions ---
+export const adminGetAreaDetails = () => api.get<AreaDetail[]>('/admin/areas/details');
+export const adminGetStations = () => api.get<StationInfo[]>('/admin/stations');
+export const adminCreateArea = (data: { name: string }) => api.post<AreaDetail>('/admin/areas', data);
+export const adminUpdateArea = (areaId: number, data: AreaUpdate) => api.put<AreaDetail>(`/admin/areas/${areaId}`, data);
+export const adminDeleteArea = (areaId: number) => api.delete(`/admin/areas/${areaId}`);
+export const adminAssignManagersToArea = (areaId: number, managerIds: number[]) =>
+    api.put<AreaDetail>(`/admin/assignments/areas/${areaId}/managers`, { manager_ids: managerIds });
+export const adminAssignStationsToArea = (areaId: number, stationIds: number[]) =>
+    api.put<AreaDetail>(`/admin/assignments/areas/${areaId}/stations`, { station_ids: stationIds });
 
 export default api;

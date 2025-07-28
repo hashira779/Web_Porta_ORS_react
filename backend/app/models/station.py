@@ -1,43 +1,26 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, Boolean
+from sqlalchemy.orm import relationship
+from app.db.base_class import Base
+from .user import user_area_association, user_station_association
 
-# Use the same Base as your other models to ensure relationships work.
-# A common practice is to define Base once in a central file and import it.
-# For this example, we'll redefine it, but ensure it's consistent in your project.
-Base = declarative_base()
+class Area(Base):
+    __tablename__ = 'areas_tb'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, index=True, nullable=False)
 
-class Province(Base):
-    __tablename__ = 'provinces'
-    id = Column(String(10), primary_key=True)
-    name = Column(String(255))
-    description = Column(Text)
-    # Add other fields as needed
+    stations = relationship('Station', back_populates='area')
+    managers = relationship("User", secondary=user_area_association, back_populates="managed_areas")
 
-class AMControl(Base):
-    __tablename__ = 'am_control'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    email = Column(String(100), nullable=False)
-
-class Supporter(Base):
-    __tablename__ = 'supporter'
-    id = Column(Integer, primary_key=True)
-    supporter_name = Column(String(100), nullable=False)
-    email = Column(String(100), nullable=False)
-
-class StationInfo(Base):
+class Station(Base):
     __tablename__ = 'station_info'
-    id = Column(Integer, primary_key=True)
-    station_ID = Column(String(11), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    station_ID = Column(String(11))
     station_name = Column(String(500))
-    
-    # Foreign Keys
-    am_control_id = Column(Integer, ForeignKey('am_control.id'))
-    supporter_id = Column(Integer, ForeignKey('supporter.id'))
-    province_id = Column(String(10), ForeignKey('provinces.id'))
-    
-    # --- Relationships ---
-    # These tell SQLAlchemy how to join the tables
-    am_control = relationship("AMControl")
-    supporter = relationship("Supporter")
-    province = relationship("Province")
+    Province = Column(String(255))
+    AM_Control = Column(Text)
+    active = Column(Boolean, default=True)
+
+    area_id = Column(Integer, ForeignKey('areas_tb.id'), nullable=True) # CORRECTED FK
+    area = relationship('Area', back_populates='stations')
+
+    owners = relationship("User", secondary=user_station_association, back_populates="owned_stations")

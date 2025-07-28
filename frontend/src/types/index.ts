@@ -1,31 +1,85 @@
-// src/types.ts
+// src/types/index.ts
 
-// Defines the shape of a Permission object
+// --- Core Models ---
 export interface Permission {
     id: number;
     name: string;
     description: string | null;
 }
 
-// Defines the shape of a Role, including its permissions
 export interface Role {
     id: number;
     name: string;
     description: string | null;
-    permissions: Permission[]; // A role can have many permissions
+    permissions: Permission[];
 }
 
-// Defines the shape of a User, including their full Role object
+export interface Area {
+    id: number;
+    name: string;
+}
+
+export interface StationInfo {
+    id: number;
+    station_name: string; // Matches the backend model's column name
+}
+
 export interface User {
     id: number;
     username: string;
     email: string;
     is_active: boolean;
-    role: Role; // A user has one role
+    role: Role;
+    managed_areas: Area[];
+    owned_stations: StationInfo[];
 }
 
-// --- Other types ---
+// --- Detailed Models for Pages ---
+export interface AreaDetail extends Area {
+    stations: StationInfo[];
+    managers: User[];
+}
 
+// --- API Payloads & Form Data ---
+export interface UserFormData {
+    id?: number;
+    username: string;
+    email: string;
+    password?: string;
+    role_id: number;
+    is_active?: boolean;
+}
+
+export interface UserCreate extends Omit<UserFormData, 'id' | 'password' | 'is_active'> {
+    password?: string;
+}
+
+export interface UserUpdate {
+    email?: string;
+    role_id?: number;
+    is_active?: boolean;
+}
+
+export interface RoleUpdate {
+    permission_ids: number[];
+}
+
+export interface RoleDetailsUpdate {
+    name: string;
+    description?: string | null;
+}
+
+export interface PermissionCreate {
+    name: string;
+    description?: string | null;
+}
+
+export interface AreaUpdate {
+    name: string;
+}
+
+
+// --- Your Existing Types ---
 export interface Sale {
     ID: number;
     MAT_ID: string | null;
@@ -35,23 +89,7 @@ export interface Sale {
     STATION_ID: string | null;
 }
 
-export interface Station {
-    id: number;
-    station_id: string;
-    station_name: string;
-    Province: string;
-    active: boolean;
-}
-
 export interface DecodedToken {
     sub: string;
     exp: number;
-}
-export interface UserFormData {
-    id?: number;
-    username: string;
-    email: string;
-    password?: string; // Password is optional, only used for creation
-    role_id: number;
-    is_active?: boolean;
 }

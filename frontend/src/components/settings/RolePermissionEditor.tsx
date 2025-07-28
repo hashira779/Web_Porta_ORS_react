@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { adminUpdateRole } from '../../api/api';
-import { Role, Permission } from '../../types';
+// CORRECTED: Import the correct function name for updating permissions
+import { adminUpdateRolePermissions } from '../../api/api';
+import { Role, Permission, RoleUpdate } from '../../types';
 
 interface RolePermissionEditorProps {
     role: Role;
@@ -27,15 +28,21 @@ const RolePermissionEditor: React.FC<RolePermissionEditorProps> = ({ role, allPe
     };
 
     const handleSaveChanges = () => {
-        const permission_ids = Array.from(selectedPermissions);
-        adminUpdateRole(role.id, { ...role, permission_ids })
+        // CORRECTED: Create a payload that matches the RoleUpdate type
+        const payload: RoleUpdate = {
+            permission_ids: Array.from(selectedPermissions)
+        };
+
+        // CORRECTED: Call the right function with the correct payload
+        adminUpdateRolePermissions(role.id, payload)
             .then(() => {
-                alert("Role updated successfully!");
+                alert("Role permissions updated successfully!");
                 onSaveSuccess();
             })
-            .catch(() => alert("Failed to save changes."));
+            .catch(() => alert("Failed to save permission changes."));
     };
 
+    // ... Your JSX remains the same ...
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border">
             <h2 className="text-lg font-semibold mb-1">Permissions for <span className="text-indigo-600">{role.name}</span></h2>

@@ -1,14 +1,40 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey
+from sqlalchemy import (
+    Column, Integer, String, Boolean, ForeignKey, Table
+)
 from sqlalchemy.orm import relationship
-from app.db.base_class import Base # Make sure you have this file
+from app.db.base_class import Base
 
-class UserDB(Base):
+# --- ASSOCIATION TABLES ---
+# CORRECTED: ForeignKeys now point to the correct table names.
+role_permission_association = Table(
+    'role_permissions', Base.metadata,
+    Column('role_id', Integer, ForeignKey('roles.id'), primary_key=True),
+    Column('permission_id', Integer, ForeignKey('permissions.id'), primary_key=True)
+)
+
+user_area_association = Table(
+    'user_area_assignments', Base.metadata,
+    Column('user_id', Integer, ForeignKey('users_tb.id'), primary_key=True),
+    Column('area_id', Integer, ForeignKey('areas_tb.id'), primary_key=True)
+)
+
+user_station_association = Table(
+    'user_station_assignments', Base.metadata,
+    Column('user_id', Integer, ForeignKey('users_tb.id'), primary_key=True),
+    Column('station_id', Integer, ForeignKey('station_info.id'), primary_key=True)
+)
+# --- END ASSOCIATION TABLES ---
+
+class User(Base):
     __tablename__ = 'users_tb'
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, nullable=False, index=True)
-    email = Column(String(120), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
-    role_id = Column(Integer, ForeignKey('roles.id'))
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean(), default=True)
 
-    role = relationship("Role", back_populates="users")
+    role_id = Column(Integer, ForeignKey('roles.id'))
+    role = relationship('Role', back_populates='users')
+
+    managed_areas = relationship("Area", secondary=user_area_association, back_populates="managers")
+    owned_stations = relationship("Station", secondary=user_station_association, back_populates="owners")

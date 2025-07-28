@@ -14,7 +14,7 @@ import {
     MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import UserModal from './UserModal';
-import Spinner from '../common/CalSpin'; // Assume you have a Spinner component
+import CalSpin from '../common/CalSpin'; // Assume you have a Spinner component
 
 const UserManagement: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -93,7 +93,7 @@ const UserManagement: React.FC = () => {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
-                <Spinner size="lg" />
+                <CalSpin size="lg" />
             </div>
         );
     }

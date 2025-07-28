@@ -13,6 +13,7 @@ import {
     XMarkIcon,
     Bars3Icon
 } from '@heroicons/react/24/outline';
+import {FolderOpenIcon} from "@heroicons/react/16/solid";
 
 interface CurrentUser {
     username: string;
@@ -55,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         { to: "/reports", icon: PresentationChartBarIcon, label: "Reports" },
         { to: "/admin", icon: UserGroupIcon, label: "Admin", adminOnly: true },
         { to: "/settings", icon: Cog6ToothIcon, label: "Settings", adminOnly: true },
+        { to: "/assign", icon: FolderOpenIcon, label: "Assignments", adminOnly: true },
         { to: "/notifications", icon: BellIcon, label: "Notifications" },
         { to: "/help", icon: QuestionMarkCircleIcon, label: "Help" }
     ];
