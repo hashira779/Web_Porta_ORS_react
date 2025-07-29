@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { adminGetStations, adminGetAllUsers, adminGetRoles, adminAssignStationsToOwner } from '../api/api';
 import { StationInfo, User, Role } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,7 +11,7 @@ import {
     FunnelIcon as FiFilter,
     CheckCircleIcon,
     ExclamationCircleIcon
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/outline';
 
 const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({
                                                                                                     message,
@@ -55,14 +55,19 @@ const StationAssignmentsPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [ownerSearchTerm, setOwnerSearchTerm] = useState('');
     const [showAssignedOnly, setShowAssignedOnly] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const observerRef = useRef<IntersectionObserver | null>(null);
+    const lastStationRef = useRef<HTMLDivElement | null>(null);
 
     const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
 
-    const fetchData = useCallback(async () => {
-        !selectedOwner && setIsLoading(true);
+    const fetchData = useCallback(async (pageNum: number = 1) => {
+        setIsLoading(true);
         try {
             const [stationsRes, usersRes, rolesRes] = await Promise.all([
-                adminGetStations(),
+                adminGetStations(pageNum, 20), // Assuming pagination with page and limit
                 adminGetAllUsers(),
                 adminGetRoles(),
             ]);
@@ -70,7 +75,6 @@ const StationAssignmentsPage: React.FC = () => {
             const ownerRole = rolesRes.data.find(r => r.name.toLowerCase() === 'owner');
             const ownerUsers = ownerRole ? usersRes.data.filter(u => u.role?.id === ownerRole.id) : [];
 
-            setStations(stationsRes.data);
             setOwners(ownerUsers);
 
             const assignedMap = new Map<number, number>();
@@ -79,21 +83,33 @@ const StationAssignmentsPage: React.FC = () => {
                     assignedMap.set(station.id, station.owners[0].id);
                 }
             });
+
+            // Update stations based on page
+            if (pageNum === 1) {
+                setStations(stationsRes.data);
+            } else {
+                setStations(prev => [...prev, ...stationsRes.data]);
+            }
+
             setGloballyAssignedStationIds(assignedMap);
 
             if (ownerUsers.length > 0) {
                 const current = selectedOwner ? ownerUsers.find(o => o.id === selectedOwner.id) : null;
                 handleOwnerSelect(current || ownerUsers[0]);
             }
+
+            // Check if there are more stations to load
+            setHasMore(stationsRes.data.length === 20); // Adjust based on API response structure
         } catch (err) {
             showToast("Failed to load data.", "error");
         } finally {
             setIsLoading(false);
+            setIsLoadingMore(false);
         }
     }, [selectedOwner]);
 
     useEffect(() => {
-        fetchData();
+        fetchData(1);
     }, []);
 
     const handleOwnerSelect = (owner: User) => {
@@ -116,7 +132,7 @@ const StationAssignmentsPage: React.FC = () => {
         try {
             await adminAssignStationsToOwner(selectedOwner.id, Array.from(assignedStationIds));
             showToast("Stations assigned successfully!", "success");
-            await fetchData();
+            await fetchData(1); // Refresh data after saving
         } catch (err) {
             showToast("Failed to save assignments.", "error");
         } finally {
@@ -138,7 +154,34 @@ const StationAssignmentsPage: React.FC = () => {
         );
     }, [owners, ownerSearchTerm]);
 
-    if (isLoading) return (
+    // Infinite scroll logic
+    const loadMore = useCallback(() => {
+        if (hasMore && !isLoadingMore && !isLoading) {
+            setIsLoadingMore(true);
+            setPage(prev => prev + 1);
+            fetchData(page + 1);
+        }
+    }, [hasMore, isLoadingMore, isLoading, page, fetchData]);
+
+    useEffect(() => {
+        if (observerRef.current) observerRef.current.disconnect();
+
+        observerRef.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                loadMore();
+            }
+        });
+
+        if (lastStationRef.current) {
+            observerRef.current.observe(lastStationRef.current);
+        }
+
+        return () => {
+            if (observerRef.current) observerRef.current.disconnect();
+        };
+    }, [loadMore, hasMore]);
+
+    if (isLoading && page === 1) return (
         <div className="flex justify-center items-center h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
         </div>
@@ -264,12 +307,14 @@ const StationAssignmentsPage: React.FC = () => {
                                 <div className="flex-1 overflow-y-auto p-6">
                                     {filteredStations.length > 0 ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {filteredStations.map(station => {
+                                            {filteredStations.map((station, index) => {
                                                 const assignedToAnother = globallyAssignedStationIds.has(station.id) &&
                                                     globallyAssignedStationIds.get(station.id) !== selectedOwner.id;
+                                                const isLastStation = index === filteredStations.length - 1;
                                                 return (
                                                     <motion.div
                                                         key={station.id}
+                                                        ref={isLastStation ? lastStationRef : null}
                                                         whileHover={{ scale: 1.03 }}
                                                         className={`p-5 rounded-xl border transition-all duration-200 ${
                                                             assignedStationIds.has(station.id)
@@ -307,6 +352,11 @@ const StationAssignmentsPage: React.FC = () => {
                                                     </motion.div>
                                                 );
                                             })}
+                                            {isLoadingMore && (
+                                                <div className="col-span-full flex justify-center items-center py-4">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
@@ -344,5 +394,6 @@ const StationAssignmentsPage: React.FC = () => {
         </div>
     );
 };
+
 
 export default StationAssignmentsPage;

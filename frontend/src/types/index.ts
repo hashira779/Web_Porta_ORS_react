@@ -22,6 +22,7 @@ export interface Area {
 // CORRECTED: StationInfo now includes the 'owners' array
 export interface StationInfo {
     id: number;
+    station_ID: string;
     station_name: string;
     owners: User[]; // Each station object now knows its owners
 }

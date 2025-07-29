@@ -12,6 +12,7 @@ class UserSimple(BaseModel):
 class StationBase(BaseModel):
     # Use Field alias to map station_name from the model to 'name' in the JSON response
     name: str = Field(..., alias='station_name')
+    station_ID: str = Field(..., alias='station_ID')
 
 class AreaBase(BaseModel):
     name: str

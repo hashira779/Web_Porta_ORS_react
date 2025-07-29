@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import {motion, AnimatePresence, Transition} from 'framer-motion';
+import { motion, AnimatePresence, Transition } from 'framer-motion';
 import authService from '../../services/auth.service';
 import {
     ChartBarIcon,
@@ -11,9 +11,10 @@ import {
     BellIcon,
     QuestionMarkCircleIcon,
     XMarkIcon,
-    Bars3Icon
+    Bars3Icon,
+    MapPinIcon,
 } from '@heroicons/react/24/outline';
-import {FolderOpenIcon} from "@heroicons/react/16/solid";
+import { FolderOpenIcon } from "@heroicons/react/16/solid";
 
 interface CurrentUser {
     username: string;
@@ -57,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         { to: "/admin", icon: UserGroupIcon, label: "Admin", adminOnly: true },
         { to: "/settings", icon: Cog6ToothIcon, label: "Settings", adminOnly: true },
         { to: "/assign", icon: FolderOpenIcon, label: "Assignments", adminOnly: true },
-        { to: "/StationAssignmentsPage", icon: FolderOpenIcon, label: "StationAssignmentsPage", adminOnly: true },
+        { to: "/StationAssignmentsPage", icon: MapPinIcon, label: "Station Assignments", adminOnly: true },
         { to: "/notifications", icon: BellIcon, label: "Notifications" },
         { to: "/help", icon: QuestionMarkCircleIcon, label: "Help" }
     ];
@@ -78,13 +79,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         restDelta: 0.001
     };
 
-
     return (
         <>
             {/* Mobile menu button */}
             <button
                 aria-label={isOpen ? "Close menu" : "Open menu"}
-                className="md:hidden fixed top-4 left-4 z-50 bg-indigo-700 p-2 rounded-lg text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="md:hidden fixed top-4 left-4 z-50 bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200"
                 onClick={() => setIsOpen(!isOpen)}
             >
                 {isOpen ? (
@@ -98,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        className="md:hidden fixed inset-0 bg-black/30 z-30 backdrop-blur-sm"
+                        className="md:hidden fixed inset-0 bg-black/40 z-30 backdrop-blur-sm"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -112,20 +112,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             <motion.aside
                 initial={false}
                 animate={{
-                    width: isOpen ? '17rem' : '5rem',
-                    boxShadow: isHovered && !isOpen ? '0 0 20px rgba(99, 102, 241, 0.3)' : 'none'
+                    width: isOpen ? '18rem' : '4.5rem',
+                    boxShadow: isHovered && !isOpen ? '0 0 25px rgba(99, 102, 241, 0.2)' : 'none'
                 }}
                 transition={springTransition}
                 className={`fixed top-0 left-0 h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col z-40
-                   ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+                   ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} border-r border-gray-700/30`}
                 onHoverStart={() => setIsHovered(true)}
                 onHoverEnd={() => setIsHovered(false)}
                 aria-label="Sidebar"
             >
                 {/* Header */}
-                <div className="flex items-center justify-center px-4 py-5 border-b border-gray-700 h-[77px]">
+                <div className="flex items-center justify-center px-4 py-6 border-b border-gray-700/50 h-[80px]">
                     <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-600 rounded-lg">
+                        <div className="p-2.5 bg-indigo-600 rounded-xl shadow-md">
                             <ChartBarIcon className="h-6 w-6 text-white" aria-hidden="true" />
                         </div>
                         <AnimatePresence>
@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                     exit={{ opacity: 0, x: -10 }}
                                     className="flex flex-col"
                                 >
-                                    <span className="text-xl font-bold text-white">Portal</span>
+                                    <span className="text-xl font-bold text-white tracking-tight">Portal</span>
                                     <span className="text-xs text-indigo-300">v2.4.1</span>
                                 </motion.div>
                             )}
@@ -146,23 +146,35 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
                 {/* Navigation */}
                 <nav className="flex-grow px-3 py-6 overflow-y-auto">
-                    <ul className="space-y-1">
+                    <ul className="space-y-1.5">
                         {filteredNavItems.map((item) => (
                             <li key={item.to}>
                                 <NavLink
                                     to={item.to}
                                     className={({ isActive }) =>
-                                        `flex items-center py-3 rounded-lg transition-all duration-300 relative ${
+                                        `flex items-center py-3 rounded-xl transition-all duration-300 relative group ${
                                             isActive
-                                                ? "bg-indigo-600/90 text-white shadow-md"
-                                                : "text-gray-300 hover:bg-indigo-600/30 hover:text-white"
+                                                ? "bg-indigo-600 text-white shadow-lg"
+                                                : "text-gray-200 hover:bg-indigo-700/50 hover:text-white"
                                         } ${isOpen ? 'px-4' : 'justify-center px-0'}`
                                     }
                                     aria-current={location.pathname === item.to ? "page" : undefined}
                                 >
                                     {({ isActive }) => (
                                         <>
-                                            <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                                            <div className="relative">
+                                                <item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform duration-200" aria-hidden="true" />
+                                                {!isOpen && (
+                                                    <motion.span
+                                                        className="absolute left-14 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-3 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: isHovered ? 1 : 0 }}
+                                                        transition={{ duration: 0.2 }}
+                                                    >
+                                                        {item.label}
+                                                    </motion.span>
+                                                )}
+                                            </div>
                                             <AnimatePresence>
                                                 {isOpen && (
                                                     <motion.span
@@ -170,7 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                                         animate={{ opacity: 1, x: 0 }}
                                                         exit={{ opacity: 0, x: -10 }}
                                                         transition={{ duration: 0.2 }}
-                                                        className="ml-3 text-sm font-medium"
+                                                        className="ml-3 text-sm font-medium tracking-wide"
                                                     >
                                                         {item.label}
                                                     </motion.span>
@@ -194,10 +206,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                 </nav>
 
                 {/* User profile and logout */}
-                <div className={`p-4 border-t border-gray-700 ${isOpen ? 'px-4' : 'flex justify-center flex-col items-center'}`}>
+                <div className={`p-4 border-t border-gray-700/50 ${isOpen ? 'px-4' : 'flex justify-center flex-col items-center'}`}>
                     <div className="flex items-center mb-4">
                         <div
-                            className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold"
+                            className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold shadow-md"
                             aria-label="User avatar"
                         >
                             {getInitials(currentUser?.username)}
@@ -210,8 +222,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                     exit={{ opacity: 0, x: -10 }}
                                     className="ml-3"
                                 >
-                                    <div className="text-sm font-medium text-white">{currentUser.username}</div>
-                                    <div className="text-xs text-gray-400">{currentUser.role?.name || 'User'}</div>
+                                    <div className="text-sm font-medium text-white tracking-wide">{currentUser.username}</div>
+                                    <div className="text-xs text-gray-300 capitalize">{currentUser.role?.name || 'User'}</div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -219,7 +231,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
                     <button
                         onClick={() => authService.logout()}
-                        className={`w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-medium py-2.5 rounded-lg flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800 ${
+                        className={`w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-medium py-2.5 rounded-xl flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
                             isOpen ? 'px-4' : 'px-2'
                         }`}
                         aria-label="Logout"
@@ -232,7 +244,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -10 }}
                                     transition={{ duration: 0.2 }}
-                                    className="ml-3 text-sm"
+                                    className="ml-3 text-sm font-medium"
                                 >
                                     Logout
                                 </motion.span>
