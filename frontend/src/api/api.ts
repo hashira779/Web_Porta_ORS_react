@@ -59,7 +59,11 @@ export const adminDeletePermission = (permissionId: number) => api.delete(`/admi
 
 // --- Area and Assignment Functions ---
 export const adminGetAreaDetails = () => api.get<AreaDetail[]>('/admin/areas/details');
-export const adminGetStations = () => api.get<StationInfo[]>('/admin/stations');
+export const adminGetStations = (page: number = 1, limit: number = 20) => {
+  return api.get<StationInfo[]>(`/admin/stations`, {
+    params: { page, limit }
+  });
+};
 export const adminCreateArea = (data: { name: string }) => api.post<AreaDetail>('/admin/areas', data);
 export const adminUpdateArea = (areaId: number, data: AreaUpdate) => api.put<AreaDetail>(`/admin/areas/${areaId}`, data);
 export const adminDeleteArea = (areaId: number) => api.delete(`/admin/areas/${areaId}`);
