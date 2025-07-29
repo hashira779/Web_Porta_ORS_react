@@ -34,7 +34,10 @@ api.interceptors.request.use((config) => {
 
 // --- General Functions ---
 export const getMyProfile = () => api.get<User>('/users/me');
-export const getSalesDataByYear = (year: string) => api.get<Sale[]>(`/sales/${year}`);
+
+export const getSalesDataByYear = (year: string) => api.get<Sale[]>(`/reports/sales/${year}`);
+
+
 export const getDashboardData = (filters: FilterParams = {}) => {
   const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v).map(([k, v]) => [k, String(v)]));
   return api.get('/dashboard/', { params });

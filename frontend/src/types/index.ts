@@ -84,12 +84,18 @@ export interface AreaUpdate {
 
 // --- Your Existing Types ---
 export interface Sale {
-    ID: number;
-    MAT_ID: string | null;
-    VALUE: number | null;
-    UNIT_PRICE: number | null;
-    AMOUNT: number | null;
+    // These fields should match the columns in your `summary_station_*_materialized` tables
+    ID_Type: string | null;
     STATION_ID: string | null;
+    STATION: string | null;
+    AM_Name: string | null;
+    province_name: string | null;
+    date_completed: string; // Dates will come as strings
+    MAT_ID: string | null;
+    PAYMENT: string | null;
+    SHIFT_ID: number | null;
+    total_valume: number; // Use number for calculations
+    total_amount: number; // Use number for calculations
 }
 
 export interface DecodedToken {

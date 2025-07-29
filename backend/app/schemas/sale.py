@@ -1,22 +1,26 @@
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
+from pydantic import BaseModel, validator
+from typing import Optional, Any
+from datetime import date
 
 class Sale(BaseModel):
-    """
-    Defines the structure of a single sales record returned by the API.
-    """
-    ID: int
-    MAT_ID: Optional[str] = None
-    VALUE: Optional[float] = None
-    UNIT_PRICE: Optional[float] = None
-    AMOUNT: Optional[float] = None
-    POS_ID: Optional[int] = None
-    SHIFT_ID: Optional[int] = None
-    PAYMENT: Optional[str] = None
-    COMPLETED_TS: Optional[datetime] = None
-    BUS_DATE: Optional[datetime] = None
+    ID_Type: Optional[str] = None
     STATION_ID: Optional[str] = None
+    STATION: Optional[str] = None
+    AM_Name: Optional[str] = None
+    province_name: Optional[str] = None
+    date_completed: Optional[date] = None
+    MAT_ID: Optional[str] = None
+    PAYMENT: Optional[str] = None
+    SHIFT_ID: Optional[int] = None
+    total_valume: Optional[float] = None
+    total_amount: Optional[float] = None
+
+    # CORRECTED: This validator automatically converts any MAT_ID to a string before validation.
+    @validator('MAT_ID', pre=True)
+    def coerce_mat_id_to_string(cls, v: Any) -> Optional[str]:
+        if v is not None:
+            return str(v)
+        return v
 
     class Config:
         from_attributes = True
