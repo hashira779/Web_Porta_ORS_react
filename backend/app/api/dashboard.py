@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
-from typing import Optional
+from typing import Optional, List
 
 from app.db.session import get_db
-from app.models import user as user_model
-# CORRECTED: Import from security, not endpoints
+from app.models import user as user_model, station as station_model
 from app.core.security import get_current_active_user
 
 router = APIRouter()
@@ -13,7 +12,6 @@ router = APIRouter()
 @router.get("/")
 def get_dashboard_data(
         db: Session = Depends(get_db),
-        # CORRECTED: Use the correct class name `User`
         current_user: user_model.User = Depends(get_current_active_user),
         year: Optional[int] = Query(None, description="Filter by year (e.g., 2024)"),
         month: Optional[int] = Query(None, description="Filter by month (1-12)"),
@@ -21,12 +19,45 @@ def get_dashboard_data(
         id_type: Optional[str] = Query(None, description="Filter by ID Type (COCO or DODO)")
 ):
     """
-    Fetches all aggregated data for the dashboard, with optional filtering.
+    Fetches aggregated dashboard data, automatically filtered based on the user's role and assignments.
+    - Admins see all data.
+    - Area Managers see data for stations in their assigned areas.
+    - Station Owners see data for their assigned stations only.
     """
     try:
-        base_select_fields = "MAT_ID, total_valume, PAYMENT, date_completed, ID_type"
+        # --- 1. Determine Station Scope Based on User Role ---
+        station_filter_clause = ""
+        params = {}
 
-        # Determine which years have materialized views available (adjust as needed)
+        user_role = current_user.role.name.lower()
+
+        if user_role == 'area manager':
+            if not current_user.managed_areas:
+                return {"kpi": {}, "charts": {}} # Return empty if no areas assigned
+
+            area_ids = [area.id for area in current_user.managed_areas]
+
+            stations_in_areas = db.query(station_model.Station.station_ID).filter(station_model.Station.area_id.in_(area_ids)).all()
+            station_ids = [s[0] for s in stations_in_areas if s[0]] # Get station_ID and filter out None
+
+            if not station_ids: return {"kpi": {}, "charts": {}}
+
+            station_filter_clause = "AND sales.STATION_ID IN :station_ids"
+            params["station_ids"] = station_ids
+
+        elif user_role == 'owner':
+            if not current_user.owned_stations:
+                return {"kpi": {}, "charts": {}} # Return empty if no stations assigned
+
+            station_ids = [station.station_ID for station in current_user.owned_stations if station.station_ID]
+            if not station_ids: return {"kpi": {}, "charts": {}}
+
+            station_filter_clause = "AND sales.STATION_ID IN :station_ids"
+            params["station_ids"] = station_ids
+
+        # --- 2. Dynamically build the base sales query ---
+        base_select_fields = "MAT_ID,  total_valume, PAYMENT, date_completed, ID_type, STATION_ID"
+
         available_years = [2023, 2024, 2025]
 
         if year and year in available_years:
@@ -38,9 +69,8 @@ def get_dashboard_data(
             ]
             base_query = " UNION ALL ".join(union_parts)
 
+        # --- 3. Build WHERE clause ---
         where_clauses = []
-        params = {}
-
         if id_type:
             where_clauses.append("sales.ID_type = :id_type")
             params["id_type"] = id_type
@@ -51,8 +81,15 @@ def get_dashboard_data(
             where_clauses.append("EXTRACT(DAY FROM sales.date_completed) = :day")
             params["day"] = day
 
-        where_string = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        # Combine all filters
+        where_string = ""
+        if where_clauses:
+            where_string = f"WHERE {' AND '.join(where_clauses)} {station_filter_clause}"
+        elif station_filter_clause:
+            where_string = f"WHERE 1=1 {station_filter_clause}"
 
+
+        # --- 4. Execute Queries ---
         station_count_query = text("SELECT COUNT(id) as total_stations FROM station_info WHERE active = 1")
         station_count_result = db.execute(station_count_query).first()
 
@@ -96,6 +133,7 @@ def get_dashboard_data(
                 "volume_by_product": [dict(row._mapping) for row in product_chart_result],
             }
         }
+
     except Exception as e:
         print(f"An error occurred in dashboard endpoint: {e}")
         raise HTTPException(status_code=500, detail="Could not fetch dashboard data.")

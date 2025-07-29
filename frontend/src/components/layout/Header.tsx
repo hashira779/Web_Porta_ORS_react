@@ -1,7 +1,12 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Menu, Transition } from '@headlessui/react';
-// CORRECTED: Imported the correct icon names
-import { MagnifyingGlassIcon, BellIcon, UserCircleIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
+import {
+  MagnifyingGlassIcon,
+  BellIcon,
+  UserCircleIcon,
+  Cog6ToothIcon,
+  ArrowLeftOnRectangleIcon
+} from '@heroicons/react/24/outline';
 import { jwtDecode } from 'jwt-decode';
 import authService from '../../services/auth.service';
 import { DecodedToken } from '../../types';
@@ -15,6 +20,8 @@ const Header: React.FC = () => {
       try {
         const decodedToken = jwtDecode<DecodedToken>(token);
         setUsername(decodedToken.sub);
+        const element = document.querySelector('.flex-1') as HTMLElement | null;
+        console.log('Header rendered, username:', decodedToken.sub, 'marginLeft:', element?.style.marginLeft || 'not set'); // Safe access with type assertion
       } catch (error) {
         console.error("Failed to decode token:", error);
       }
@@ -32,16 +39,15 @@ const Header: React.FC = () => {
         <div className="flex-1 min-w-0">
           <div className="relative text-gray-400 focus-within:text-gray-600">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-            {/* CORRECTED: Used the correct icon component */}
             <MagnifyingGlassIcon className="h-5 w-5" aria-hidden="true" />
           </span>
-            <input
-                id="search-field"
-                className="block w-full h-full pl-10 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-0 focus:border-transparent sm:text-sm bg-gray-100 rounded-md"
-                placeholder="Search..."
-                type="search"
-                name="search"
-            />
+            {/*<input*/}
+            {/*    id="search-field"*/}
+            {/*    className="block w-full h-full pl-10 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-0 focus:border-transparent sm:text-sm bg-gray-100 rounded-md"*/}
+            {/*    placeholder="Search..."*/}
+            {/*    type="search"*/}
+            {/*    name="search"*/}
+            {/*/>*/}
           </div>
         </div>
 
@@ -61,7 +67,7 @@ const Header: React.FC = () => {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-20">
                 <div className="px-4 py-3">
                   <p className="text-sm font-medium text-gray-900">Notifications</p>
                 </div>
@@ -96,7 +102,7 @@ const Header: React.FC = () => {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
             >
-              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+              <Menu.Items className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-20">
                 <Menu.Item>
                   {({ active }) => (
                       <a href="#" className={`${active ? 'bg-gray-100' : ''} flex items-center px-4 py-2 text-sm text-gray-700`}>
@@ -114,7 +120,6 @@ const Header: React.FC = () => {
                 <Menu.Item>
                   {({ active }) => (
                       <button onClick={authService.logout} className={`${active ? 'bg-gray-100' : ''} w-full text-left flex items-center px-4 py-2 text-sm text-gray-700`}>
-                        {/* CORRECTED: Used the correct icon component */}
                         <ArrowLeftOnRectangleIcon className="h-5 w-5 mr-3 text-gray-400"/> Sign out
                       </button>
                   )}

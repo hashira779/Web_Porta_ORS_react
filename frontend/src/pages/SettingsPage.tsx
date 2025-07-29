@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-// CORRECTED: All function imports now match the final api.ts file
 import {
     adminGetRoles,
     adminGetPermissions,
@@ -8,8 +7,7 @@ import {
     adminDeleteRole,
     adminCreatePermission,
     adminDeletePermission,
-    adminUpdatePermission,
-    adminUpdateRolePermissions // This was a key missing import
+    adminUpdatePermission
 } from '../api/api';
 import { Role, Permission, RoleDetailsUpdate, PermissionCreate } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,14 +16,12 @@ import {
     CogIcon, ShieldCheckIcon, UserGroupIcon, PencilIcon
 } from '@heroicons/react/24/outline';
 
-// CORRECTED: Import the Spinner component from its correct location
 import Spinner from '../components/common/CalSpin';
 import ConfirmationModal from '../components/settings/ConfirmationModal';
 import RoleFormModal from '../components/settings/RoleFormModal';
 import PermissionFormModal from '../components/settings/PermissionFormModal';
 import RolePermissionEditor from '../components/settings/RolePermissionEditor';
 
-// --- Reusable Toast Component ---
 const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({ message, type, onDismiss }) => {
     useEffect(() => {
         const timer = setTimeout(() => onDismiss(), 5000);
@@ -66,7 +62,7 @@ const SettingsPage: React.FC = () => {
 
     const fetchData = useCallback(async () => {
         try {
-            setIsLoading(true);
+            !selectedRole && setIsLoading(true);
             const [rolesRes, permsRes] = await Promise.all([adminGetRoles(), adminGetPermissions()]);
             setRoles(rolesRes.data);
             setPermissions(permsRes.data);
@@ -75,11 +71,11 @@ const SettingsPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [selectedRole]);
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, []);
 
     useEffect(() => {
         if (roles.length > 0) {
@@ -96,7 +92,6 @@ const SettingsPage: React.FC = () => {
         }
     }, [roles, selectedRole]);
 
-    // --- Role CRUD Handlers ---
     const handleRoleSave = async (roleData: { id?: number; name: string; description?: string | null }) => {
         try {
             if (roleData.id) {
@@ -119,7 +114,6 @@ const SettingsPage: React.FC = () => {
         setShowConfirmModal(true);
     };
 
-    // --- Permission CRUD Handlers ---
     const handlePermissionSave = async (permissionData: PermissionCreate & { id?: number }) => {
         try {
             if (permissionData.id) {
@@ -159,11 +153,7 @@ const SettingsPage: React.FC = () => {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <Spinner size="lg" />
-            </div>
-        );
+        return <div className="flex justify-center items-center h-64"><Spinner size="lg" /></div>;
     }
 
     return (
@@ -179,7 +169,6 @@ const SettingsPage: React.FC = () => {
             {toast && <div className="fixed top-4 right-4 z-50 w-80"><Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} /></div>}
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Left Panel */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="px-5 py-4 border-b bg-gray-50 flex justify-between items-center">
@@ -201,9 +190,27 @@ const SettingsPage: React.FC = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* --- RESTORED: Permissions Management Panel --- */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div className="px-5 py-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h2 className="text-lg font-semibold text-gray-800 flex items-center"><CogIcon className="w-5 h-5 mr-2 text-indigo-600" />Permissions</h2>
+                            <button onClick={() => { setEditingPermission(null); setShowPermissionModal(true); }} className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700"><PlusIcon className="h-4 w-4 mr-1" /> New</button>
+                        </div>
+                        <div>
+                            {permissions.map(permission => (
+                                <div key={permission.id} className="flex items-center justify-between border-t hover:bg-gray-50">
+                                    <p className="px-5 py-3 text-gray-700 font-medium">{permission.name}</p>
+                                    <div className="flex-shrink-0 flex space-x-2 px-3">
+                                        <button onClick={() => { setEditingPermission(permission); setShowPermissionModal(true); }} className="text-indigo-600 hover:text-indigo-900"><PencilIcon className="h-4 w-4" /></button>
+                                        <button onClick={() => handleDeletePermissionClick(permission)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-4 w-4" /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
-                {/* Right Panel */}
                 <div className="lg:col-span-3">
                     {selectedRole ? (
                         <RolePermissionEditor
@@ -211,6 +218,7 @@ const SettingsPage: React.FC = () => {
                             role={selectedRole}
                             allPermissions={permissions}
                             onSaveSuccess={fetchData}
+                            showToast={showToast}
                         />
                     ) : (
                         <div className="bg-white rounded-lg shadow-sm border p-8 text-center">

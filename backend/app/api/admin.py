@@ -97,9 +97,40 @@ def update_role_permissions(role_id: int, permissions_update: role_schema.RoleUp
     db.refresh(role)
     return role
 
+
+
 @router.get("/permissions", response_model=List[role_schema.Permission], tags=["Admin - Roles"])
 def get_all_permissions(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
     return db.query(role_model.Permission).all()
+# --- NEW: Create Permission Endpoint ---
+@router.post("/permissions", response_model=role_schema.Permission, status_code=status.HTTP_201_CREATED, tags=["Admin"])
+def create_permission(permission: role_schema.PermissionCreate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    new_permission = role_model.Permission(**permission.model_dump())
+    db.add(new_permission)
+    db.commit()
+    db.refresh(new_permission)
+    return new_permission
+
+@router.put("/permissions/{permission_id}", response_model=role_schema.Permission, tags=["Admin"])
+def update_permission(permission_id: int, permission_update: role_schema.PermissionCreate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_permission = db.query(role_model.Permission).get(permission_id)
+    if not db_permission:
+        raise HTTPException(status_code=404, detail="Permission not found")
+    db_permission.name = permission_update.name
+    db_permission.description = permission_update.description
+    db.commit()
+    db.refresh(db_permission)
+    return db_permission
+
+@router.delete("/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin"])
+def delete_permission(permission_id: int, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    db_permission = db.query(role_model.Permission).get(permission_id)
+    if db_permission:
+        db.delete(db_permission)
+        db.commit()
+    return
+
+
 
 @router.get("/areas/details", response_model=List[station_schema.Area], tags=["Admin - Assignments"])
 def get_area_details(db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
