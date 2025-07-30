@@ -1,27 +1,34 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import authService from '../services/auth.service';
+import { useAuth } from '../context/AuthContext'; // 👈 Import the useAuth hook
 
 const LoginPage: React.FC = () => {
+  const { login } = useAuth(); // 👈 Get the login function from the context
+  const navigate = useNavigate();
+
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const navigate = useNavigate();
 
-  const handleLogin = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleLogin = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    if (!username || !password) {
+      setError("Username and password are required.");
+      return;
+    }
     setError('');
     setIsLoading(true);
-    authService.login(username, password)
-        .then(() => {
-          setIsLoading(false);
-          navigate('/dashboard');
-        })
-        .catch(err => {
-          setIsLoading(false);
-          setError(err.response?.data?.detail || 'Login failed');
-        });
+
+    try {
+      // 👇 Call the login function from the context
+      await login(username, password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -34,58 +41,62 @@ const LoginPage: React.FC = () => {
                 {error}
               </p>
           )}
-          <div className="space-y-6">
-            <div className="animate-fade-in-up">
-              <label htmlFor="username" className="block text-sm sm:text-base font-medium text-gray-800 mb-2">
-                Username
-              </label>
-              <input
-                  id="username"
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                  className="w-full px-4 py-2 sm:py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 text-gray-900 placeholder-gray-400 shadow-sm hover:shadow-md text-sm sm:text-base"
-                  placeholder="Enter your username"
-              />
+          <form>
+            <div className="space-y-6">
+              <div className="animate-fade-in-up">
+                <label htmlFor="username" className="block text-sm sm:text-base font-medium text-gray-800 mb-2">
+                  Username
+                </label>
+                <input
+                    id="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-2 sm:py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 text-gray-900 placeholder-gray-400 shadow-sm hover:shadow-md text-sm sm:text-base"
+                    placeholder="Enter your username"
+                />
+              </div>
+              <div className="animate-fade-in-up animation-delay-200">
+                <label htmlFor="password" className="block text-sm sm:text-base font-medium text-gray-800 mb-2">
+                  Password
+                </label>
+                <input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2 sm:py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 text-gray-900 placeholder-gray-400 shadow-sm hover:shadow-md text-sm sm:text-base"
+                    placeholder="Enter your password"
+                />
+              </div>
+              <div className="animate-fade-in-up animation-delay-400">
+                <button
+                    type="submit"
+                    onClick={handleLogin}
+                    disabled={isLoading}
+                    className={`w-full px-4 py-2 sm:py-3 font-semibold text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl text-sm sm:text-base ${
+                        isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                    }`}
+                >
+                  {isLoading ? (
+                      <>
+                        <svg className="animate-spin h-4 sm:h-5 w-4 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                        </svg>
+                        <span>Signing In...</span>
+                      </>
+                  ) : (
+                      <span>Sign In</span>
+                  )}
+                </button>
+              </div>
             </div>
-            <div className="animate-fade-in-up animation-delay-200">
-              <label htmlFor="password" className="block text-sm sm:text-base font-medium text-gray-800 mb-2">
-                Password
-              </label>
-              <input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 sm:py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 text-gray-900 placeholder-gray-400 shadow-sm hover:shadow-md text-sm sm:text-base"
-                  placeholder="Enter your password"
-              />
-            </div>
-            <div className="animate-fade-in-up animation-delay-400">
-              <button
-                  type="button"
-                  onClick={handleLogin}
-                  disabled={isLoading}
-                  className={`w-full px-4 py-2 sm:py-3 font-semibold text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl text-sm sm:text-base ${
-                      isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-              >
-                {isLoading ? (
-                    <>
-                      <svg className="animate-spin h-4 sm:h-5 w-4 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                      </svg>
-                      <span>Signing In...</span>
-                    </>
-                ) : (
-                    <span>Sign In</span>
-                )}
-              </button>
-            </div>
-          </div>
+          </form>
           <p className="mt-6 sm:mt-8 text-center text-sm sm:text-base text-gray-600 animate-fade-in-up animation-delay-600">
             Don't have an account?{' '}
             <a href="/signup" className="text-indigo-600 hover:text-indigo-800 font-semibold transition-colors duration-200">

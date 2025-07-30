@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import endpoints, admin, dashboard, reports
+from app.api import endpoints, admin, dashboard, reports ,stations
 
 app = FastAPI(
     title="Portal API",
@@ -11,6 +11,7 @@ app.include_router(endpoints.router, prefix="/api", tags=["Authentication & User
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+app.include_router(stations.router, prefix="/api/stations", tags=["stations"])
 
 @app.get("/")
 def read_root():

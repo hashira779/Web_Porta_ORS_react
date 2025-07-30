@@ -51,6 +51,12 @@ class StationAssignment(BaseModel):
 class ManagerAssignment(BaseModel):
     manager_ids: List[int]
 
+class StationSuggestion(BaseModel):
+    station_ID: str
+    station_name: str
+
+    class Config:
+        orm_mode = True
 # --- NEW: Schema for assigning owners ---
 class OwnerAssignment(BaseModel):
     owner_ids: List[int]

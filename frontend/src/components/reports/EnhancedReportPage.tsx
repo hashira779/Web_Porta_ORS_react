@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getSalesDataByYear } from '../../api/api';
-import { Sale } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getSalesDataByYear, searchStations } from '../../api/api';
+import { Sale, StationSuggestion } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import Spinner from '../common/CalSpin';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { motion } from 'framer-motion';
 import { ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon, FunnelIcon, ArrowDownTrayIcon, DocumentArrowDownIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
-import * as XLSX from 'xlsx'; // ✅ CORRECT
+import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import autoTable from 'jspdf-autotable';
 
 // --- Reusable Pagination Component ---
@@ -25,7 +24,6 @@ const Pagination: React.FC<{
             pageNumbers.push('...');
         }
     }
-
     return (
         <div className="flex items-center justify-between mt-4">
             <button
@@ -67,21 +65,57 @@ const Pagination: React.FC<{
     );
 };
 
+
 const EnhancedReportPage: React.FC = () => {
-    const [year, setYear] = useState<string>('2025');
+    // --- Get current user from our global AuthContext ---
+    const { currentUser } = useAuth();
+
+    // --- State for this page's data and UI ---
     const [allData, setAllData] = useState<Sale[]>([]);
-    const [filters, setFilters] = useState({ station: '', startDate: '', endDate: '' });
-    const [loading, setLoading] = useState<boolean>(false);
+    const [year, setYear] = useState<string>('2025');
+    const [dataLoading, setDataLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
+
+    // UI states
+    const [filters, setFilters] = useState({ stationId: '', startDate: '', endDate: '' });
     const [sortConfig, setSortConfig] = useState<{ key: keyof Sale; direction: 'ascending' | 'descending' } | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState<number>(15);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [showFilters, setShowFilters] = useState<boolean>(false);
+    const [stationSearchInput, setStationSearchInput] = useState('');
+    const [suggestions, setSuggestions] = useState<StationSuggestion[]>([]);
+    const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+
+    // --- Check for specific IN-PAGE permissions like filter and export ---
+    const userPermissions = useMemo(() => {
+        if (!currentUser) return { canExport: false, canFilter: false };
+        const permissions = new Set(currentUser.role.permissions.map(p => p.name));
+        return {
+            canExport: permissions.has('export') || currentUser.role?.name === 'admin',
+            canFilter: permissions.has('filter') || currentUser.role?.name === 'admin',
+        };
+    }, [currentUser]);
+
+    // --- Data fetching and processing logic ---
+    useEffect(() => {
+        if (stationSearchInput.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+        setIsSuggestionsLoading(true);
+        const debounceTimer = setTimeout(() => {
+            searchStations(stationSearchInput)
+                .then(response => setSuggestions(response.data))
+                .catch(() => setSuggestions([]))
+                .finally(() => setIsSuggestionsLoading(false));
+        }, 300);
+        return () => clearTimeout(debounceTimer);
+    }, [stationSearchInput]);
 
     const handleFetch = (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
+        setDataLoading(true);
         setError('');
         setAllData([]);
         getSalesDataByYear(year)
@@ -97,39 +131,38 @@ const EnhancedReportPage: React.FC = () => {
                 }
             })
             .catch(err => setError(err.response?.data?.detail || 'Failed to fetch report'))
-            .finally(() => setLoading(false));
+            .finally(() => setDataLoading(false));
+    };
+
+    const handleSelectStation = (station: StationSuggestion) => {
+        setStationSearchInput(station.station_name);
+        setFilters({ ...filters, stationId: station.station_ID });
+        setSuggestions([]);
     };
 
     const filteredData = useMemo(() => {
         let data = [...allData];
-
-        // Apply column filters
-        if (filters.station) {
-            data = data.filter(d =>
-                d.STATION?.toLowerCase().includes(filters.station.toLowerCase()) ||
-                d.STATION_ID?.toLowerCase().includes(filters.station.toLowerCase())
-            );
+        if (userPermissions.canFilter) {
+            if (filters.stationId) {
+                data = data.filter(d => d.STATION_ID === filters.stationId);
+            }
+            if (filters.startDate) {
+                data = data.filter(d => new Date(d.date_completed) >= new Date(filters.startDate));
+            }
+            if (filters.endDate) {
+                data = data.filter(d => new Date(d.date_completed) <= new Date(filters.endDate));
+            }
         }
-        if (filters.startDate) {
-            data = data.filter(d => new Date(d.date_completed) >= new Date(filters.startDate));
-        }
-        if (filters.endDate) {
-            data = data.filter(d => new Date(d.date_completed) <= new Date(filters.endDate));
-        }
-
-        // Apply global search
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             data = data.filter(item =>
-                Object.values(item).some(
-                    val => val?.toString().toLowerCase().includes(query)
-                )
+                Object.values(item).some(val => val?.toString().toLowerCase().includes(query))
             );
         }
-
         return data;
-    }, [filters, allData, searchQuery]);
+    }, [filters, allData, searchQuery, userPermissions.canFilter]);
 
+    // ... other data processing functions (sortedData, paginatedData, charts, exports) remain the same ...
     const sortedData = useMemo(() => {
         let sortableData = [...filteredData];
         if (sortConfig !== null) {
@@ -184,18 +217,14 @@ const EnhancedReportPage: React.FC = () => {
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
 
-    // Export functions
     const exportToCSV = () => {
         const headers = Object.keys(allData[0] || {});
         const csvContent = [
             headers.join(','),
             ...sortedData.map(row =>
-                headers.map(header =>
-                    `"${String(row[header as keyof Sale] || '').replace(/"/g, '""')}"`
-                ).join(',')
+                headers.map(header => `"${String(row[header as keyof Sale] || '').replace(/"/g, '""')}"`).join(',')
             )
         ].join('\n');
-
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, `sales-report-${year}.csv`);
     };
@@ -209,27 +238,16 @@ const EnhancedReportPage: React.FC = () => {
 
     const exportToPDF = () => {
         const doc = new jsPDF();
-
         const headers = Object.keys(allData[0] || {});
-        const data = sortedData.map(row =>
-            headers.map(header => String(row[header as keyof Sale] || ''))
-        );
-
+        const data = sortedData.map(row => headers.map(header => String(row[header as keyof Sale] || '')));
         doc.text(`Sales Report - ${year}`, 14, 16);
-
-        // Use autoTable directly
         autoTable(doc, {
-            head: [headers],
-            body: data,
-            startY: 20,
-            styles: { fontSize: 8 },
-            headStyles: { fillColor: [59, 130, 246] }
+            head: [headers], body: data, startY: 20,
+            styles: { fontSize: 8 }, headStyles: { fillColor: [59, 130, 246] }
         });
-
         doc.save(`sales-report-${year}.pdf`);
     };
 
-    // @ts-ignore
     return (
         <div className="space-y-6">
             {/* Filter Section */}
@@ -248,34 +266,57 @@ const EnhancedReportPage: React.FC = () => {
                         </select>
                     </div>
                     <div className="md:col-span-3">
-                        <button
-                            type="button"
-                            onClick={() => setShowFilters(!showFilters)}
-                            className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                        >
-                            <FunnelIcon className="w-4 h-4 mr-2" />
-                            {showFilters ? 'Hide Filters' : 'Show Filters'}
-                        </button>
+                        {userPermissions.canFilter && (
+                            <button
+                                type="button"
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                <FunnelIcon className="w-4 h-4 mr-2" />
+                                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                            </button>
+                        )}
                     </div>
                     <button
                         type="submit"
                         className="px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center"
-                        disabled={loading}
+                        // --- UPDATED: Button is now also disabled if the user cannot filter ---
+                        disabled={dataLoading || !userPermissions.canFilter}
                     >
-                        {loading ? <Spinner size="sm" color="white" /> : 'Fetch Report'}
+                        {dataLoading ? <Spinner size="sm" color="white" /> : 'Fetch Report'}
                     </button>
                 </form>
 
-                {showFilters && (
+                {showFilters && userPermissions.canFilter && (
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Station (ID or Name)</label>
+                        <div className="relative">
+                            <label className="block text-sm font-medium text-gray-700">Station</label>
                             <input
                                 type="text"
-                                value={filters.station}
-                                onChange={e => setFilters({...filters, station: e.target.value})}
+                                value={stationSearchInput}
+                                onChange={e => {
+                                    setStationSearchInput(e.target.value);
+                                    if (e.target.value === '') {
+                                        setFilters({ ...filters, stationId: '' });
+                                    }
+                                }}
+                                placeholder="Type ID or Name..."
                                 className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                             />
+                            {isSuggestionsLoading && <Spinner size="xs" className="absolute right-3 top-9" />}
+                            {suggestions.length > 0 && (
+                                <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    {suggestions.map((station) => (
+                                        <li
+                                            key={station.station_ID}
+                                            onClick={() => handleSelectStation(station)}
+                                            className="px-3 py-2 cursor-pointer hover:bg-indigo-50 text-sm"
+                                        >
+                                            <span className="font-bold">{station.station_ID}</span> - {station.station_name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Start Date</label>
@@ -283,7 +324,7 @@ const EnhancedReportPage: React.FC = () => {
                                 type="date"
                                 value={filters.startDate}
                                 onChange={e => setFilters({...filters, startDate: e.target.value})}
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                             />
                         </div>
                         <div>
@@ -292,13 +333,13 @@ const EnhancedReportPage: React.FC = () => {
                                 type="date"
                                 value={filters.endDate}
                                 onChange={e => setFilters({...filters, endDate: e.target.value})}
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                             />
                         </div>
                     </div>
                 )}
 
-                {error && !loading && (
+                {error && (
                     <div className="mt-4 p-3 text-sm text-red-700 bg-red-50 rounded-md">
                         {error}
                     </div>
@@ -327,17 +368,11 @@ const EnhancedReportPage: React.FC = () => {
                         <PieChart>
                             <Pie
                                 data={salesByPayment}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                fill="#8884d8"
-                                paddingAngle={5}
+                                dataKey="value" nameKey="name" cx="50%" cy="50%"
+                                innerRadius={60} outerRadius={80} fill="#8884d8" paddingAngle={5}
                                 label={({ name, percent }) => `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`}
                             >
-                                {salesByPayment.map((entry: { name: string; value: number }, index: number) => (
+                                {salesByPayment.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
@@ -359,11 +394,8 @@ const EnhancedReportPage: React.FC = () => {
                             type="text"
                             placeholder="Search all columns..."
                             value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md"
                         />
                     </div>
 
@@ -373,11 +405,8 @@ const EnhancedReportPage: React.FC = () => {
                             <select
                                 id="itemsPerPage"
                                 value={itemsPerPage}
-                                onChange={(e) => {
-                                    setItemsPerPage(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
-                                className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                                className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
                             >
                                 <option value="10">10</option>
                                 <option value="15">15</option>
@@ -388,44 +417,28 @@ const EnhancedReportPage: React.FC = () => {
                             </select>
                         </div>
 
-                        <div className="relative">
-                            <button
-                                className="flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                onClick={() => {
-                                    const menu = document.getElementById('export-menu');
-                                    menu?.classList.toggle('hidden');
-                                }}
-                            >
-                                <ArrowDownTrayIcon className="h-5 w-5 mr-1" />
-                                Export
-                            </button>
-                            <div
-                                id="export-menu"
-                                className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200"
-                            >
+                        {userPermissions.canExport && (
+                            <div className="relative">
                                 <button
-                                    onClick={exportToCSV}
-                                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                                    className="flex items-center px-3 py-2 border border-gray-300 rounded-md"
+                                    onClick={() => { document.getElementById('export-menu')?.classList.toggle('hidden'); }}
                                 >
-                                    <DocumentTextIcon className="h-4 w-4 mr-2 text-green-600" />
-                                    CSV
+                                    <ArrowDownTrayIcon className="h-5 w-5 mr-1" />
+                                    Export
                                 </button>
-                                <button
-                                    onClick={exportToExcel}
-                                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                                >
-                                    <DocumentArrowDownIcon className="h-4 w-4 mr-2 text-green-600" />
-                                    Excel
-                                </button>
-                                <button
-                                    onClick={exportToPDF}
-                                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                                >
-                                    <DocumentTextIcon className="h-4 w-4 mr-2 text-red-600" />
-                                    PDF
-                                </button>
+                                <div id="export-menu" className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                                    <button onClick={exportToCSV} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">
+                                        <DocumentTextIcon className="h-4 w-4 mr-2" /> CSV
+                                    </button>
+                                    <button onClick={exportToExcel} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">
+                                        <DocumentArrowDownIcon className="h-4 w-4 mr-2 text-green-600" /> Excel
+                                    </button>
+                                    <button onClick={exportToPDF} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">
+                                        <DocumentTextIcon className="h-4 w-4 mr-2 text-red-600" /> PDF
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
@@ -437,7 +450,7 @@ const EnhancedReportPage: React.FC = () => {
                                 <th
                                     key={key}
                                     onClick={() => requestSort(key)}
-                                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap"
+                                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
                                 >
                                     <div className="flex items-center">
                                         {key.replace(/_/g, ' ')}
@@ -454,16 +467,10 @@ const EnhancedReportPage: React.FC = () => {
                         <tbody className="bg-white divide-y divide-gray-200">
                         {paginatedData.length > 0 ? (
                             paginatedData.map((row, index) => (
-                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                <tr key={index} className="hover:bg-gray-50">
                                     {Object.values(row).map((val, i) => (
-                                        <td
-                                            key={i}
-                                            className="px-3 py-2 text-sm text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]"
-                                            title={String(val)}
-                                        >
-                                            {typeof val === 'number' ?
-                                                new Intl.NumberFormat().format(val) :
-                                                String(val)}
+                                        <td key={i} className="px-3 py-2 text-sm text-gray-700" title={String(val)}>
+                                            {typeof val === 'number' ? new Intl.NumberFormat().format(val) : String(val)}
                                         </td>
                                     ))}
                                 </tr>
@@ -471,7 +478,7 @@ const EnhancedReportPage: React.FC = () => {
                         ) : (
                             <tr>
                                 <td colSpan={Object.keys(allData[0] || {}).length} className="px-3 py-2 text-center text-sm text-gray-500">
-                                    No data available
+                                    {dataLoading ? 'Loading data...' : 'No data available'}
                                 </td>
                             </tr>
                         )}
