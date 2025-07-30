@@ -97,6 +97,10 @@ export interface Sale {
     total_valume: number; // Use number for calculations
     total_amount: number; // Use number for calculations
 }
+export interface StationSuggestion {
+    station_ID: string;
+    station_name: string;
+}
 
 export interface DecodedToken {
     sub: string;

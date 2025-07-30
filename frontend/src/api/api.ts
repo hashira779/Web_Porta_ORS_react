@@ -12,7 +12,7 @@ import {
   RoleDetailsUpdate,
   PermissionCreate,
   Sale,
-  AreaUpdate
+  AreaUpdate, StationSuggestion
 } from '../types';
 
 interface FilterParams {
@@ -83,5 +83,9 @@ export const adminAssignOwnersToStation = (stationId: number, ownerIds: number[]
 export const adminAssignStationsToOwner = (userId: number, stationIds: number[]) =>
     api.put<User>(`/admin/assignments/users/${userId}/stations`, { station_ids: stationIds });
 
-
+//function for suggestion in report page
+export const searchStations = (query: string) => {
+  // Assuming you have a configured axios instance named 'api'
+  return api.get<StationSuggestion[]>(`/stations/search?q=${query}`);
+};
 export default api;

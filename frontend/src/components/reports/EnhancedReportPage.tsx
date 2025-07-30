@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getSalesDataByYear } from '../../api/api';
-import { Sale } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getSalesDataByYear, searchStations } from '../../api/api';
+import { Sale, StationSuggestion } from '../../types';
 import Spinner from '../common/CalSpin';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { motion } from 'framer-motion';
 import { ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon, FunnelIcon, ArrowDownTrayIcon, DocumentArrowDownIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
-import * as XLSX from 'xlsx'; // ✅ CORRECT
+import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import autoTable from 'jspdf-autotable';
 
 // --- Reusable Pagination Component ---
@@ -70,7 +69,7 @@ const Pagination: React.FC<{
 const EnhancedReportPage: React.FC = () => {
     const [year, setYear] = useState<string>('2025');
     const [allData, setAllData] = useState<Sale[]>([]);
-    const [filters, setFilters] = useState({ station: '', startDate: '', endDate: '' });
+    const [filters, setFilters] = useState({ stationId: '', startDate: '', endDate: '' });
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
     const [sortConfig, setSortConfig] = useState<{ key: keyof Sale; direction: 'ascending' | 'descending' } | null>(null);
@@ -78,6 +77,35 @@ const EnhancedReportPage: React.FC = () => {
     const [itemsPerPage, setItemsPerPage] = useState<number>(15);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [showFilters, setShowFilters] = useState<boolean>(false);
+
+    // --- State for Autocomplete ---
+    const [stationSearchInput, setStationSearchInput] = useState('');
+    const [suggestions, setSuggestions] = useState<StationSuggestion[]>([]);
+    const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+
+    // --- Debounced Fetch for Suggestions ---
+    useEffect(() => {
+        if (stationSearchInput.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+
+        setIsSuggestionsLoading(true);
+        const debounceTimer = setTimeout(() => {
+            searchStations(stationSearchInput)
+                .then(response => {
+                    setSuggestions(response.data);
+                })
+                .catch(() => {
+                    setSuggestions([]); // Clear on error
+                })
+                .finally(() => {
+                    setIsSuggestionsLoading(false);
+                });
+        }, 300); // 300ms delay
+
+        return () => clearTimeout(debounceTimer);
+    }, [stationSearchInput]);
 
     const handleFetch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -100,15 +128,18 @@ const EnhancedReportPage: React.FC = () => {
             .finally(() => setLoading(false));
     };
 
+    const handleSelectStation = (station: StationSuggestion) => {
+        setStationSearchInput(station.station_name); // Show name in input
+        setFilters({ ...filters, stationId: station.station_ID }); // Set ID for filtering
+        setSuggestions([]); // Close dropdown
+    };
+
     const filteredData = useMemo(() => {
         let data = [...allData];
 
         // Apply column filters
-        if (filters.station) {
-            data = data.filter(d =>
-                d.STATION?.toLowerCase().includes(filters.station.toLowerCase()) ||
-                d.STATION_ID?.toLowerCase().includes(filters.station.toLowerCase())
-            );
+        if (filters.stationId) {
+            data = data.filter(d => d.STATION_ID === filters.stationId);
         }
         if (filters.startDate) {
             data = data.filter(d => new Date(d.date_completed) >= new Date(filters.startDate));
@@ -209,15 +240,12 @@ const EnhancedReportPage: React.FC = () => {
 
     const exportToPDF = () => {
         const doc = new jsPDF();
-
         const headers = Object.keys(allData[0] || {});
         const data = sortedData.map(row =>
             headers.map(header => String(row[header as keyof Sale] || ''))
         );
 
         doc.text(`Sales Report - ${year}`, 14, 16);
-
-        // Use autoTable directly
         autoTable(doc, {
             head: [headers],
             body: data,
@@ -268,14 +296,34 @@ const EnhancedReportPage: React.FC = () => {
 
                 {showFilters && (
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Station (ID or Name)</label>
+                        <div className="relative">
+                            <label className="block text-sm font-medium text-gray-700">Station</label>
                             <input
                                 type="text"
-                                value={filters.station}
-                                onChange={e => setFilters({...filters, station: e.target.value})}
+                                value={stationSearchInput}
+                                onChange={e => {
+                                    setStationSearchInput(e.target.value);
+                                    if (e.target.value === '') {
+                                        setFilters({ ...filters, stationId: '' });
+                                    }
+                                }}
+                                placeholder="Type ID or Name..."
                                 className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                             />
+                            {isSuggestionsLoading && <Spinner size="xs" className="absolute right-3 top-9" />}
+                            {suggestions.length > 0 && (
+                                <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    {suggestions.map((station) => (
+                                        <li
+                                            key={station.station_ID}
+                                            onClick={() => handleSelectStation(station)}
+                                            className="px-3 py-2 cursor-pointer hover:bg-indigo-50 text-sm"
+                                        >
+                                            <span className="font-bold">{station.station_ID}</span> - {station.station_name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Start Date</label>
