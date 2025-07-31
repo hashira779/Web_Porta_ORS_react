@@ -1,40 +1,46 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext'; // Assuming AuthContext is in src/context/
-
-// Import Layouts and Components
+import { AuthProvider, useAuth } from './context/AuthContext';
 import MainLayout from './components/layout/MainLayout';
-import Spinner from './components/common/CalSpin'; // Make sure this path is correct
+import Spinner from './components/common/Spinner';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
 
-// Import Pages
-import LoginPage from './pages/LoginPage';
+// Page imports (grouped by feature)
+import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import ReportPage from './pages/ReportPage';
-import AdminPage from './pages/AdminPage';
-import SettingsPage from './pages/SettingsPage';
-import AreaAssignmentsPage from './pages/AreaAssignmentsPage';
-import StationAssignmentsPage from './pages/StationAssignmentsPage';
+import ReportPage from './pages/reports/ReportPage';
+import AdminPage from './pages/admin/AdminPage';
+import SettingsPage from './pages/settings/SettingsPage';
+import AreaAssignmentsPage from './pages/assignments/AreaAssignmentsPage';
+import StationAssignmentsPage from './pages/assignments/StationAssignmentsPage';
+import SessionManagementPage from './pages/admin/SessionManagementPage';
+// import NotFoundPage from './pages/NotFoundPage';
 
-// --- Reusable Access Denied Component ---
+// Dynamic imports for better performance (optional)
+// const ReportPage = React.lazy(() => import('./pages/reports/ReportPage'));
+// const AdminPage = React.lazy(() => import('./pages/admin/AdminPage'));
+
+// Access Denied Component
 const AccessDenied: React.FC = () => {
   return (
       <MainLayout>
         <div className="flex flex-col items-center justify-center h-full p-6 bg-white rounded-xl text-center">
           <LockClosedIcon className="w-12 h-12 text-red-500 mb-4" />
           <h2 className="text-xl font-semibold text-gray-800">Access Denied</h2>
-          <p className="text-gray-600 mt-2">You do not have the required permission to view this page.</p>
+          <p className="text-gray-600 mt-2">You don't have permission to view this page.</p>
         </div>
       </MainLayout>
   );
 };
 
-// --- UPDATED ProtectedRoute Component ---
-// This now includes a special check for the 'admin' role.
-const ProtectedRoute: React.FC<{ children: React.ReactNode; permission: string }> = ({ children, permission }) => {
+// Protected Route Component
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  permissions?: string | string[];
+  adminBypass?: boolean;
+}> = ({ children, permissions = [], adminBypass = true }) => {
   const { currentUser, loading } = useAuth();
 
-  // 1. Show a spinner while checking authentication
   if (loading) {
     return (
         <div className="w-screen h-screen flex justify-center items-center">
@@ -43,65 +49,128 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; permission: string }
     );
   }
 
-  // 2. If not logged in, redirect to login
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. NEW: If user is an admin, grant access immediately
-  if (currentUser.role?.name === 'admin') {
-    return <MainLayout>{children}</MainLayout>;
+  // Convert permissions to array if it's a string
+  const requiredPermissions = Array.isArray(permissions) ? permissions : [permissions];
+
+  // Check permissions if not admin (when adminBypass is true)
+  if (!(adminBypass && currentUser.role?.name === 'admin')) {
+    const userPermissions = new Set(currentUser.role?.permissions?.map(p => p.name) || []);
+    const hasPermission = requiredPermissions.some(perm =>
+        perm === 'all' || userPermissions.has(perm)
+    );
+
+    if (!hasPermission) {
+      return <AccessDenied />;
+    }
   }
 
-  // 4. For all other roles, check for the specific permission
-  const userPermissions = new Set(currentUser.role.permissions.map(p => p.name));
-  if (!userPermissions.has(permission)) {
-    return <AccessDenied />;
-  }
-
-  // 5. If all checks pass, render the page
   return <MainLayout>{children}</MainLayout>;
 };
 
+// Route configuration (can be moved to a separate file if large)
+const routeConfig = [
+  // Public routes
+  { path: '/login', element: <LoginPage />, public: true },
 
-// --- Main App Component ---
+  // Protected routes
+  {
+    path: '/dashboard',
+    element: <DashboardPage />,
+    permissions: 'view_dashboard'
+  },
+  {
+    path: '/reports/*',
+    element: <ReportPage />,
+    permissions: ['view_reports'],
+    nested: [
+      { path: 'daily', permissions: 'daily_report' },
+      { path: 'monthly', permissions: 'monthly_report' },
+      { path: 'yearly', permissions: 'yearly_report' },
+      { path: 'custom', permissions: 'custom_report' }
+    ]
+  },
+  {
+    path: '/admin/*',
+    element: <AdminPage />,
+    permissions: 'access_admin'
+  },
+  {
+    path: '/settings',
+    element: <SettingsPage />,
+    permissions: 'edit_settings'
+  },
+  {
+    path: '/assignments/areas',
+    element: <AreaAssignmentsPage />,
+    permissions: 'assign_areas'
+  },
+  {
+    path: '/assignments/stations',
+    element: <StationAssignmentsPage />,
+    permissions: 'assign_stations'
+  },
+  {
+    path: '/sessions',
+    element: <SessionManagementPage />,
+    permissions: 'manage_sessions'
+  },
+
+  // Fallback routes
+  { path: '/', element: <Navigate to="/dashboard" replace /> },
+  // { path: '*', element: <NotFoundPage />, public: true }
+];
+
+// Main App Component
 const App: React.FC = () => {
   return (
       <AuthProvider>
         <Router>
+          {/* <React.Suspense fallback={<Spinner fullScreen />}> */}
           <Routes>
-            {/* Public route for login */}
-            <Route path="/login" element={<LoginPage />} />
+            {routeConfig.map((route) => {
+              if (route.public) {
+                return (
+                    <Route
+                        key={route.path}
+                        path={route.path}
+                        element={route.element}
+                    />
+                );
+              }
 
-            {/* Protected Routes */}
-            <Route
-                path="/dashboard"
-                element={<ProtectedRoute permission="view_dashboard"><DashboardPage /></ProtectedRoute>}
-            />
-            <Route
-                path="/reports"
-                element={<ProtectedRoute permission="daily_report"><ReportPage /></ProtectedRoute>}
-            />
-            <Route
-                path="/admin"
-                element={<ProtectedRoute permission="access_admin"><AdminPage /></ProtectedRoute>}
-            />
-            <Route
-                path="/settings"
-                element={<ProtectedRoute permission="edit_settings"><SettingsPage /></ProtectedRoute>}
-            />
-            <Route
-                path="/assign"
-                element={<ProtectedRoute permission="assign_areas"><AreaAssignmentsPage /></ProtectedRoute>}
-            />
-            <Route
-                path="/StationAssignmentsPage"
-                element={<ProtectedRoute permission="assign_stations"><StationAssignmentsPage /></ProtectedRoute>}
-            />
-
-            {/* Default route redirects to the dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" />} />
+              return (
+                  <Route
+                      key={route.path}
+                      path={route.path}
+                      element={
+                        <ProtectedRoute
+                            permissions={route.permissions}
+                            adminBypass={true}
+                        >
+                          {route.element}
+                        </ProtectedRoute>
+                      }
+                  >
+                    {route.nested?.map((nestedRoute) => (
+                        <Route
+                            key={`${route.path}-${nestedRoute.path}`}
+                            path={nestedRoute.path}
+                            element={
+                              <ProtectedRoute permissions={nestedRoute.permissions}>
+                                {route.element}
+                              </ProtectedRoute>
+                            }
+                        />
+                    ))}
+                  </Route>
+              );
+            })}
           </Routes>
+          {/* </React.Suspense> */}
         </Router>
       </AuthProvider>
   );

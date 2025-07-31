@@ -6,7 +6,10 @@ from app.db.session import get_db
 from app.models import user as user_model, role as role_model, station as station_model
 from app.schemas import user as user_schema, role as role_schema, station as station_schema
 from app.core.security import get_current_active_user, get_password_hash
-
+from app.models import session as session_model
+from app.schemas import session as session_schema
+from app.core.websockets import manager
+from app.api.endpoints import get_active_users_list
 router = APIRouter()
 
 def get_current_admin_user(current_user: user_model.User = Depends(get_current_active_user)):
@@ -223,3 +226,37 @@ def assign_stations_to_owner(
     db.commit()
     db.refresh(user)
     return user
+
+# function scan user
+
+@router.get("/sessions/active", response_model=List[session_schema.ActiveSession], tags=["Admin Sessions"])
+def get_active_sessions(db: Session = Depends(get_db)):
+    """
+    Get a list of all currently active user sessions from the database.
+    """
+    sessions = db.query(session_model.ActiveSession).order_by(
+        session_model.ActiveSession.login_time.desc()
+    ).all()
+    return sessions
+
+@router.post("/terminate-sessions/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin Sessions"])
+async def terminate_user_sessions(user_id: int, db: Session = Depends(get_db)):
+    """
+    Terminates all sessions for a user.
+    """
+    user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.token_version += 1
+
+    db.query(session_model.ActiveSession).filter(
+        session_model.ActiveSession.user_id == user_id
+    ).delete(synchronize_session=False)
+
+    db.commit()
+
+    active_users = get_active_users_list(db)
+    await manager.broadcast_active_users(active_users)
+
+    return

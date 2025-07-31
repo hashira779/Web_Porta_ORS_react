@@ -66,7 +66,7 @@ const Pagination: React.FC<{
 };
 
 
-const EnhancedReportPage: React.FC = () => {
+const DailyReportPage: React.FC = () => {
     // --- Get current user from our global AuthContext ---
     const { currentUser } = useAuth();
 
@@ -503,4 +503,4 @@ const EnhancedReportPage: React.FC = () => {
     );
 };
 
-export default EnhancedReportPage;
+export default DailyReportPage;

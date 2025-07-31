@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // 👈 Import the useAuth hook
+import { useAuth } from '../../context/AuthContext'; // 👈 Import the useAuth hook
 
 const LoginPage: React.FC = () => {
   const { login } = useAuth(); // 👈 Get the login function from the context

@@ -32,6 +32,26 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+
+api.interceptors.response.use(
+    (response) => {
+      // If the response is successful, just return it.
+      return response;
+    },
+    (error) => {
+      // If the API returns an error...
+      if (error.response && error.response.status === 401) {
+        // Check if the error is a 401 Unauthorized error.
+        console.log("Token expired or invalid. Logging out.");
+        authService.logout(); // Clear the user's token from storage.
+        window.location.href = '/login'; // Redirect to the login page.
+      }
+
+      // For all other errors, just pass them along.
+      return Promise.reject(error);
+    }
+);
+
 // --- General Functions ---
 export const getMyProfile = () => api.get<User>('/users/me');
 
@@ -88,4 +108,10 @@ export const searchStations = (query: string) => {
   // Assuming you have a configured axios instance named 'api'
   return api.get<StationSuggestion[]>(`/stations/search?q=${query}`);
 };
+
+export const adminTerminateUserSessions = (userId: number) =>
+    api.post(`/admin/terminate-sessions/${userId}`);
+
+
 export default api;
+

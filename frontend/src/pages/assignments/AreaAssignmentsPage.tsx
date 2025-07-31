@@ -9,8 +9,8 @@ import {
   adminAssignManagersToArea,
   adminAssignStationsToArea,
   adminGetAllUsers,
-} from '../api/api';
-import { AreaDetail, StationInfo, User, AreaUpdate } from '../types';
+} from '../../api/api';
+import { AreaDetail, StationInfo, User, AreaUpdate } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PlusIcon,
@@ -21,9 +21,9 @@ import {
   ClockIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
-import Spinner from '../components/common/CalSpin';
-import ConfirmationModal from '../components/area/ConfirmationModal';
-import AreaFormModal from '../components/area/AreaFormModal';
+import Spinner from '../../components/common/CalSpin';
+import ConfirmationModal from '../../components/area/ConfirmationModal';
+import AreaFormModal from '../../components/area/AreaFormModal';
 
 const Tooltip: React.FC<{ content: string; children: React.ReactNode }> = ({ content, children }) => {
   const [isVisible, setIsVisible] = useState(false);

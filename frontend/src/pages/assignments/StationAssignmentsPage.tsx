@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { adminGetStations, adminGetAllUsers, adminGetRoles, adminAssignStationsToOwner } from '../api/api';
-import { StationInfo, User, Role } from '../types';
+import { adminGetStations, adminGetAllUsers, adminGetRoles, adminAssignStationsToOwner } from '../../api/api';
+import { StationInfo, User, Role } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MagnifyingGlassIcon as FiSearch,

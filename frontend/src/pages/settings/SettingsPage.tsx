@@ -8,19 +8,19 @@ import {
     adminCreatePermission,
     adminDeletePermission,
     adminUpdatePermission
-} from '../api/api';
-import { Role, Permission, RoleDetailsUpdate, PermissionCreate } from '../types';
+} from '../../api/api';
+import { Role, Permission, RoleDetailsUpdate, PermissionCreate } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     PlusIcon, TrashIcon, CheckCircleIcon, ExclamationCircleIcon, ChevronRightIcon,
     CogIcon, ShieldCheckIcon, UserGroupIcon, PencilIcon
 } from '@heroicons/react/24/outline';
 
-import Spinner from '../components/common/CalSpin';
-import ConfirmationModal from '../components/settings/ConfirmationModal';
-import RoleFormModal from '../components/settings/RoleFormModal';
-import PermissionFormModal from '../components/settings/PermissionFormModal';
-import RolePermissionEditor from '../components/settings/RolePermissionEditor';
+import Spinner from '../../components/common/CalSpin';
+import ConfirmationModal from '../../components/settings/ConfirmationModal';
+import RoleFormModal from '../../components/settings/RoleFormModal';
+import PermissionFormModal from '../../components/settings/PermissionFormModal';
+import RolePermissionEditor from '../../components/settings/RolePermissionEditor';
 
 const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({ message, type, onDismiss }) => {
     useEffect(() => {
