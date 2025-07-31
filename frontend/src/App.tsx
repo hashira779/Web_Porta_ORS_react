@@ -75,7 +75,7 @@ const routeConfig = [
   {
     path: '/reports/:reportType',
     element: <ReportPage />,
-    permissions: ['view_reports'] // Base permission to access the reports section
+    permissions: ['view_reports']
   },
   {
     path: '/admin/*',
