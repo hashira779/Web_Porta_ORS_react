@@ -5,7 +5,7 @@ import MainLayout from './components/layout/MainLayout';
 import Spinner from './components/common/Spinner';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
 
-// Page imports
+// Page imports (grouped by feature)
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ReportPage from './pages/reports/ReportPage';
@@ -14,6 +14,11 @@ import SettingsPage from './pages/settings/SettingsPage';
 import AreaAssignmentsPage from './pages/assignments/AreaAssignmentsPage';
 import StationAssignmentsPage from './pages/assignments/StationAssignmentsPage';
 import SessionManagementPage from './pages/admin/SessionManagementPage';
+// import NotFoundPage from './pages/NotFoundPage';
+
+// Dynamic imports for better performance (optional)
+// const ReportPage = React.lazy(() => import('./pages/reports/ReportPage'));
+// const AdminPage = React.lazy(() => import('./pages/admin/AdminPage'));
 
 // Access Denied Component
 const AccessDenied: React.FC = () => {
@@ -48,8 +53,10 @@ const ProtectedRoute: React.FC<{
     return <Navigate to="/login" replace />;
   }
 
+  // Convert permissions to array if it's a string
   const requiredPermissions = Array.isArray(permissions) ? permissions : [permissions];
 
+  // Check permissions if not admin (when adminBypass is true)
   if (!(adminBypass && currentUser.role?.name === 'admin')) {
     const userPermissions = new Set(currentUser.role?.permissions?.map(p => p.name) || []);
     const hasPermission = requiredPermissions.some(perm =>
@@ -64,18 +71,27 @@ const ProtectedRoute: React.FC<{
   return <MainLayout>{children}</MainLayout>;
 };
 
-// Route configuration
+// Route configuration (can be moved to a separate file if large)
 const routeConfig = [
+  // Public routes
   { path: '/login', element: <LoginPage />, public: true },
+
+  // Protected routes
   {
     path: '/dashboard',
     element: <DashboardPage />,
     permissions: 'view_dashboard'
   },
   {
-    path: '/reports/:reportType',
+    path: '/reports/*',
     element: <ReportPage />,
-    permissions: ['view_reports'] // Base permission to access the reports section
+    permissions: ['view_reports'],
+    nested: [
+      { path: 'daily', permissions: 'daily_report' },
+      { path: 'monthly', permissions: 'monthly_report' },
+      { path: 'yearly', permissions: 'yearly_report' },
+      { path: 'custom', permissions: 'custom_report' }
+    ]
   },
   {
     path: '/admin/*',
@@ -102,7 +118,10 @@ const routeConfig = [
     element: <SessionManagementPage />,
     permissions: 'manage_sessions'
   },
+
+  // Fallback routes
   { path: '/', element: <Navigate to="/dashboard" replace /> },
+  // { path: '*', element: <NotFoundPage />, public: true }
 ];
 
 // Main App Component
@@ -110,6 +129,7 @@ const App: React.FC = () => {
   return (
       <AuthProvider>
         <Router>
+          {/* <React.Suspense fallback={<Spinner fullScreen />}> */}
           <Routes>
             {routeConfig.map((route) => {
               if (route.public) {
@@ -134,10 +154,23 @@ const App: React.FC = () => {
                           {route.element}
                         </ProtectedRoute>
                       }
-                  />
+                  >
+                    {route.nested?.map((nestedRoute) => (
+                        <Route
+                            key={`${route.path}-${nestedRoute.path}`}
+                            path={nestedRoute.path}
+                            element={
+                              <ProtectedRoute permissions={nestedRoute.permissions}>
+                                {route.element}
+                              </ProtectedRoute>
+                            }
+                        />
+                    ))}
+                  </Route>
               );
             })}
           </Routes>
+          {/* </React.Suspense> */}
         </Router>
       </AuthProvider>
   );
