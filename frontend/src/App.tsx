@@ -15,6 +15,7 @@ import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
 import AreaAssignmentsPage from './pages/AreaAssignmentsPage';
 import StationAssignmentsPage from './pages/StationAssignmentsPage';
+import SessionManagementPage from './pages/SessionManagementPage'; //
 
 // --- Reusable Access Denied Component ---
 const AccessDenied: React.FC = () => {
@@ -97,6 +98,10 @@ const App: React.FC = () => {
             <Route
                 path="/StationAssignmentsPage"
                 element={<ProtectedRoute permission="assign_stations"><StationAssignmentsPage /></ProtectedRoute>}
+            />
+            <Route
+                path="/sessions"
+                element={<ProtectedRoute permission="manage_sessions"><SessionManagementPage /></ProtectedRoute>}
             />
 
             {/* Default route redirects to the dashboard */}

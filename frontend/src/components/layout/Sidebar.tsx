@@ -15,6 +15,7 @@ import {
     Bars3Icon,
     MapPinIcon,
     FolderOpenIcon,
+    ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -48,6 +49,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         { to: "/settings", icon: Cog6ToothIcon, label: "Settings", permission: "edit_settings" },
         { to: "/assign", icon: FolderOpenIcon, label: "Area Assignments", permission: "assign_areas" },
         { to: "/StationAssignmentsPage", icon: MapPinIcon, label: "Station Assignments", permission: "assign_stations" },
+        {
+            to: "/sessions",
+            icon: ShieldExclamationIcon,
+            label: "Session Management",
+            permission: "manage_sessions"
+        },
         { to: "/notifications", icon: BellIcon, label: "Notifications", permission: "all" },
         { to: "/help", icon: QuestionMarkCircleIcon, label: "Help", permission: "all" }
     ];

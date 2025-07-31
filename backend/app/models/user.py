@@ -31,7 +31,7 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean(), default=True)
-
+    token_version = Column(Integer, nullable=False, server_default='0', default=0)
     role_id = Column(Integer, ForeignKey('roles.id'))
     role = relationship('Role', back_populates='users')
 
