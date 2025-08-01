@@ -6,6 +6,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.5",
     "@heroicons/react": "^2.2.0",
+    "@tanstack/react-query": "^5.84.0",
     "axios": "^1.7.2",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.7",
