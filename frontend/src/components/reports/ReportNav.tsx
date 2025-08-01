@@ -21,10 +21,15 @@ const ReportNav: React.FC<ReportNavProps> = ({ activeReport }) => {
     const filteredReportItems = React.useMemo(() => {
         if (loading || !currentUser) return []; // Return empty if loading or no user
 
-        // Only check specific permissions, no fallback to 'view_reports' or admin
+        // Admin bypass: Show all items if role is 'admin'
+        if (currentUser.role?.name === 'admin') {
+            return reportItems;
+        }
+
+        // For non-admins, check specific permissions
         const userPermissions = new Set(currentUser.role?.permissions?.map(p => p.name) || []);
         return reportItems.filter(item =>
-            userPermissions.has(item.permission) // Strict check for exact permission
+            userPermissions.has(item.permission)
         );
     }, [currentUser, loading]);
 
