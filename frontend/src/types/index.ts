@@ -110,3 +110,36 @@ export interface DecodedToken {
 export interface StationDetail extends StationInfo {
     owners: User[];
 }
+
+export interface AuthContextType {
+    currentUser: User | null;
+    loading: boolean;
+    isAuthenticated: boolean;
+    login: (username: string, password: string) => Promise<void>;
+    logout: () => void;
+}
+
+export interface ActiveUser {
+    user_id: number;
+    username: string;
+    login_time: string;
+}
+
+export interface UserHistorySummary {
+    user_id: number;
+    username: string;
+    session_count: number;
+}
+
+export interface SessionDetail {
+    id: number;
+    login_time: string;
+    logout_time: string | null;
+    ip_address: string | null;
+    user_agent: string | null;
+}
+
+export interface UserHistoryResponse {
+    username: string;
+    history: SessionDetail[];
+}

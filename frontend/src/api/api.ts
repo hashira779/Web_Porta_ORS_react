@@ -12,7 +12,7 @@ import {
   RoleDetailsUpdate,
   PermissionCreate,
   Sale,
-  AreaUpdate, StationSuggestion
+  AreaUpdate, StationSuggestion, UserHistorySummary, UserHistoryResponse
 } from '../types';
 
 interface FilterParams {
@@ -109,9 +109,10 @@ export const searchStations = (query: string) => {
   return api.get<StationSuggestion[]>(`/stations/search?q=${query}`);
 };
 
-export const adminTerminateUserSessions = (userId: number) =>
-    api.post(`/admin/terminate-sessions/${userId}`);
+export const adminTerminateUserSessions = (userId: number) => api.post(`/admin/terminate-sessions/${userId}`);
 
+export const adminGetUsersWithHistory = () => api.get<UserHistorySummary[]>(`/admin/sessions/history-summary`);
 
+export const adminGetHistoryForUser = (userId: number) => api.get<UserHistoryResponse>(`/admin/sessions/history/${userId}`);
 export default api;
 

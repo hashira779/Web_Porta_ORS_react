@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from app.db.session import get_db
-from app.models import user as user_model, role as role_model, station as station_model
-from app.schemas import user as user_schema, role as role_schema, station as station_schema
+from app.models import user as user_model, role as role_model, station as station_model, session_history as session_history_model
+from app.schemas import user as user_schema, role as role_schema, station as station_schema, session_history as history_schema
 from app.core.security import get_current_active_user, get_password_hash
 from app.models import session as session_model
 from app.schemas import session as session_schema
+from sqlalchemy import func
 from app.core.websockets import manager
 from app.api.endpoints import get_active_users_list
 router = APIRouter()
@@ -228,7 +229,6 @@ def assign_stations_to_owner(
     return user
 
 # function scan user
-
 @router.get("/sessions/active", response_model=List[session_schema.ActiveSession], tags=["Admin Sessions"])
 def get_active_sessions(db: Session = Depends(get_db)):
     """
@@ -248,15 +248,67 @@ async def terminate_user_sessions(user_id: int, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # This logic is for JWT token versioning to invalidate old tokens
     user.token_version += 1
 
+    # This removes the user from the real-time active sessions table
     db.query(session_model.ActiveSession).filter(
         session_model.ActiveSession.user_id == user_id
     ).delete(synchronize_session=False)
 
     db.commit()
 
+    # Broadcast the updated list of active users to all connected clients
     active_users = get_active_users_list(db)
     await manager.broadcast_active_users(active_users)
 
     return
+
+# ===============================================
+#  NEW History Endpoints
+# ===============================================
+
+@router.get(
+    "/sessions/history-summary",
+    response_model=List[history_schema.UserHistorySummary],
+    tags=["Admin Sessions"]
+)
+def get_users_with_history(db: Session = Depends(get_db)):
+    """
+    Get a summary of all users and their total login counts from the history table.
+    """
+    results = (
+        db.query(
+            user_model.User.id.label("user_id"),
+            user_model.User.username.label("username"),
+            func.count(session_history_model.SessionHistory.id).label("session_count"),
+        )
+        .join(session_history_model.SessionHistory, user_model.User.id == session_history_model.SessionHistory.user_id)
+        .group_by(user_model.User.id, user_model.User.username)
+        .order_by(user_model.User.username)
+        .all()
+    )
+    return results
+
+
+@router.get(
+    "/sessions/history/{user_id}",
+    response_model=history_schema.UserHistoryResponse,
+    tags=["Admin Sessions"]
+)
+def get_history_for_user(user_id: int, db: Session = Depends(get_db)):
+    """
+    Get the detailed login history for a single user.
+    """
+    user = db.query(user_model.User).filter(user_model.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    history = (
+        db.query(session_history_model.SessionHistory)
+        .filter(session_history_model.SessionHistory.user_id == user_id)
+        .order_by(session_history_model.SessionHistory.login_time.desc())
+        .all()
+    )
+
+    return {"username": user.username, "history": history}
