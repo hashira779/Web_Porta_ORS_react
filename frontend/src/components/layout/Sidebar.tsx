@@ -53,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                 { to: "/reports/monthly", icon: ChartBarIcon, label: "Monthly", permission: "view_monthly_reports" },
                 { to: "/reports/yearly", icon: ChartBarIcon, label: "Yearly", permission: "view_yearly_reports" },
                 { to: "/reports/custom", icon: ChartBarIcon, label: "Custom", permission: "view_custom_reports" },
+                { to: "/reports/TelegramReport", icon: ChartBarIcon, label: "TelegramReport", permission: "view_telegram_reports" },
             ]
         },
         { to: "/admin", icon: UserGroupIcon, label: "Admin", permission: "access_admin" },

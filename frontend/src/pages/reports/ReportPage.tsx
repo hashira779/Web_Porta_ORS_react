@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import DailyReport from '../../components/reports/DailyReportPage';
 import MonthlyReport from '../../components/reports/MonthlyReport';
 import YearlyReport from '../../components/reports/YearlyReport';
+import TelegramReport from '../../components/reports/SendTelegramReportPage';
 import CustomReport from '../../components/reports/CustomReport';
 import ReportNav from '../../components/reports/ReportNav';
 
@@ -18,11 +19,12 @@ const ReportPage: React.FC = () => {
         monthly: 'view_monthly_reports',
         yearly: 'view_yearly_reports',
         custom: 'view_custom_reports',
+        TelegramReport: 'view_telegram_reports',
     } as const; // Makes the keys readonly and literal types
 
     // Type guard for valid report types
     const isValidReportType = (type: string | undefined): type is keyof typeof reportPermissions => {
-        return type === 'DailyReport' || type === 'monthly' || type === 'yearly' || type === 'custom';
+        return type === 'DailyReport' || type === 'monthly' || type === 'yearly' || type === 'custom'|| type === 'TelegramReport';
     };
 
     // Check if user has permission for the specific report type
@@ -55,6 +57,8 @@ const ReportPage: React.FC = () => {
                 return <MonthlyReport />;
             case 'yearly':
                 return <YearlyReport />;
+            case 'TelegramReport':
+                return <TelegramReport />;
             // case 'custom':
             //     return <CustomReport />;
             default:
@@ -63,6 +67,7 @@ const ReportPage: React.FC = () => {
                         {hasPermission('DailyReport') && <DailyReport />}
                         {hasPermission('monthly') && <MonthlyReport />}
                         {hasPermission('yearly') && <YearlyReport />}
+                        {hasPermission('TelegramReport') && <TelegramReport />}
                         {/*{hasPermission('custom') && <CustomReport />}*/}
                     </div>
                 );

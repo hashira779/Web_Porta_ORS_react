@@ -11,6 +11,9 @@ from app.schemas import session as session_schema
 from sqlalchemy import func
 from app.core.websockets import manager
 from app.api.endpoints import get_active_users_list
+
+from app.models.user import user_area_association, user_station_association
+
 router = APIRouter()
 
 def get_current_admin_user(current_user: user_model.User = Depends(get_current_active_user)):
@@ -48,21 +51,86 @@ def create_user(user: user_schema.UserCreate, db: Session = Depends(get_db), adm
 
 @router.put("/users/{user_id}", response_model=user_schema.User, tags=["Admin - Users"])
 def update_user(user_id: int, user_update: user_schema.UserUpdate, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
-    db_user = db.query(user_model.User).get(user_id)
+    db_user = db.query(user_model.User).options(
+        joinedload(user_model.User.role),
+        joinedload(user_model.User.managed_areas),
+        joinedload(user_model.User.owned_stations)
+    ).get(user_id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    update_data = user_update.model_dump(exclude_unset=True)
+
+    # Validate unique constraints for username and email
+    if user_update.username and user_update.username != db_user.username:
+        db_user_by_username = db.query(user_model.User).filter(user_model.User.username == user_update.username).first()
+        if db_user_by_username:
+            raise HTTPException(status_code=400, detail="Username already registered")
+        db_user.username = user_update.username
+
+    if user_update.email and user_update.email != db_user.email:
+        db_user_by_email = db.query(user_model.User).filter(user_model.User.email == user_update.email).first()
+        if db_user_by_email:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        db_user.email = user_update.email
+
+    # Update password if provided
+    if user_update.password:
+        db_user.hashed_password = get_password_hash(user_update.password)
+
+    # Validate role_id if provided
+    if user_update.role_id is not None:
+        db_role = db.query(role_model.Role).get(user_update.role_id)
+        if not db_role:
+            raise HTTPException(status_code=400, detail="Role not found")
+        db_user.role_id = user_update.role_id
+
+    # Update scalar fields
+    update_data = user_update.model_dump(exclude_unset=True, exclude={'username', 'email', 'password', 'role_id', 'managed_area_ids', 'owned_station_ids'})
     for key, value in update_data.items():
         setattr(db_user, key, value)
+
+    # Update managed areas if provided
+    if user_update.managed_area_ids is not None:
+        areas = db.query(station_model.Area).filter(station_model.Area.id.in_(user_update.managed_area_ids)).all()
+        if len(areas) != len(user_update.managed_area_ids):
+            raise HTTPException(status_code=400, detail="One or more area IDs are invalid")
+        db_user.managed_areas = areas
+
+    # Update owned stations if provided
+    if user_update.owned_station_ids is not None:
+        stations = db.query(station_model.Station).filter(station_model.Station.id.in_(user_update.owned_station_ids)).all()
+        if len(stations) != len(user_update.owned_station_ids):
+            raise HTTPException(status_code=400, detail="One or more station IDs are invalid")
+        db_user.owned_stations = stations
+
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+from sqlalchemy.sql import text
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin - Users"])
 def delete_user(user_id: int, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
     db_user = db.query(user_model.User).get(user_id)
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Delete related records in user_areas (handle both constraints)
+    db.execute(text("DELETE FROM user_areas WHERE user_id = :user_id"), {"user_id": user_id})
+
+    # Delete related records in user_station_assignments
+    db.execute(text("DELETE FROM user_station_assignments WHERE user_id = :user_id"), {"user_id": user_id})
+
+    # Delete related active sessions (handled by CASCADE, but included for completeness)
+    db.query(session_model.ActiveSession).filter(session_model.ActiveSession.user_id == user_id).delete(synchronize_session=False)
+
+    # Delete related session history (handled by CASCADE, but included for completeness)
+    db.query(session_history_model.SessionHistory).filter(session_history_model.SessionHistory.user_id == user_id).delete(synchronize_session=False)
+
+    # Increment token_version to invalidate any active tokens
+    db_user.token_version += 1
+
+    # Delete the user
     db.delete(db_user)
     db.commit()
     return
@@ -100,6 +168,31 @@ def update_role_permissions(role_id: int, permissions_update: role_schema.RoleUp
     db.commit()
     db.refresh(role)
     return role
+@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Admin - Roles"])
+def delete_role(role_id: int, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+    """
+    Deletes a role, but only if it is not currently assigned to any users.
+    """
+    # First, find the role to be deleted.
+    db_role = db.query(role_model.Role).get(role_id)
+    if not db_role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
+    # IMPORTANT SAFETY CHECK: Check if any user is currently using this role.
+    user_with_role = db.query(user_model.User).filter(user_model.User.role_id == role_id).first()
+    if user_with_role:
+        # If a user has this role, raise a 409 Conflict error and do not delete.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete role '{db_role.name}'. It is currently assigned to one or more users."
+        )
+
+    # If the role is not in use, it is safe to delete.
+    db.delete(db_role)
+    db.commit()
+
+    # A 204 response means success but no content is returned in the body.
+    return
 
 
 

@@ -15,9 +15,16 @@ class UserCreate(UserBase):
     role_id: int
 
 class UserUpdate(BaseModel):
+    username: Optional[str] = None
     email: Optional[str] = None
+    password: Optional[str] = None
     role_id: Optional[int] = None
     is_active: Optional[bool] = None
+    managed_area_ids: Optional[List[int]] = None  # List of area IDs to assign
+    owned_station_ids: Optional[List[int]] = None  # List of station IDs to assign
+
+    class Config:
+        from_attributes = True
 
 class AreaSimple(BaseModel):
     id: int

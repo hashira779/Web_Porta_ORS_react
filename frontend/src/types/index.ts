@@ -33,6 +33,7 @@ export interface User {
     email: string;
     is_active: boolean;
     role: Role;
+    user_id: string | null; // <-- ADDED
     managed_areas: Area[];
     owned_stations: StationInfo[];
 }
@@ -46,6 +47,7 @@ export interface AreaDetail extends Area {
 // --- API Payloads & Form Data ---
 export interface UserFormData {
     id?: number;
+    user_id: string | null; // <-- ADDED
     username: string;
     email: string;
     password?: string;
@@ -142,4 +144,11 @@ export interface SessionDetail {
 export interface UserHistoryResponse {
     username: string;
     history: SessionDetail[];
+}
+// In your types.ts file
+
+export interface SendTelegramReportRequest {
+    start_date: string;
+    end_date: string;
+    roles: string[];
 }

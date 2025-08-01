@@ -14,6 +14,7 @@ const ReportNav: React.FC<ReportNavProps> = ({ activeReport }) => {
         { to: '/reports/DailyReport', label: 'Daily1', permission: 'view_daily_reports' },
         { to: '/reports/monthly', label: 'Monthly', permission: 'view_monthly_reports' },
         { to: '/reports/yearly', label: 'Yearly', permission: 'view_yearly_reports' },
+        { to: '/reports/TelegramReport', label: 'Telegram Report', permission: 'view_telegram_reports' },
         { to: '/reports/custom', label: 'Custom', permission: 'view_custom_reports' },
     ];
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Optional, List
+from typing import Optional
 
 from app.db.session import get_db
 from app.models import user as user_model, station as station_model
@@ -20,56 +20,73 @@ def get_dashboard_data(
 ):
     """
     Fetches aggregated dashboard data, automatically filtered based on the user's role and assignments.
-    - Admins see all data.
-    - Area Managers see data for stations in their assigned areas.
-    - Station Owners see data for their assigned stations only.
+    - Admins see all data and total station count.
+    - Area Managers see data and station count for their assigned areas.
+    - Station Owners see data and station count for their assigned stations.
     """
     try:
-        # --- 1. Determine Station Scope Based on User Role ---
+        # --- 1. Determine Station Scope and Count Based on User Role ---
         station_filter_clause = ""
         params = {}
+        total_stations_count = 0
+        station_ids = []
 
         user_role = current_user.role.name.lower()
 
-        if user_role == 'area manager':
+        if user_role == 'area': # Assuming 'area' is the role name for Area Manager
             if not current_user.managed_areas:
-                return {"kpi": {}, "charts": {}} # Return empty if no areas assigned
+                return {"kpi": {"total_stations": 0}, "charts": {}}
 
             area_ids = [area.id for area in current_user.managed_areas]
-
-            stations_in_areas = db.query(station_model.Station.station_ID).filter(station_model.Station.area_id.in_(area_ids)).all()
-            station_ids = [s[0] for s in stations_in_areas if s[0]] # Get station_ID and filter out None
-
-            if not station_ids: return {"kpi": {}, "charts": {}}
-
-            station_filter_clause = "AND sales.STATION_ID IN :station_ids"
-            params["station_ids"] = station_ids
+            stations_in_areas = db.query(station_model.Station.station_ID).filter(
+                station_model.Station.area_id.in_(area_ids),
+                station_model.Station.active == True # Only count active stations
+            ).all()
+            station_ids = [s[0] for s in stations_in_areas if s[0]]
+            total_stations_count = len(station_ids)
 
         elif user_role == 'owner':
             if not current_user.owned_stations:
-                return {"kpi": {}, "charts": {}} # Return empty if no stations assigned
+                return {"kpi": {"total_stations": 0}, "charts": {}}
 
-            station_ids = [station.station_ID for station in current_user.owned_stations if station.station_ID]
-            if not station_ids: return {"kpi": {}, "charts": {}}
+            # Filter for active stations directly in the list
+            active_owned_stations = [s for s in current_user.owned_stations if s.active]
+            station_ids = [station.station_ID for station in active_owned_stations if station.station_ID]
+            total_stations_count = len(station_ids)
 
+        else: # This is the Admin role
+            # Admin sees the count of ALL active stations
+            station_count_query = text("SELECT COUNT(id) as total_stations FROM station_info WHERE active = 1")
+            station_count_result = db.execute(station_count_query).first()
+            if station_count_result:
+                total_stations_count = station_count_result._mapping['total_stations']
+
+        # If a non-admin user has no stations assigned, return early
+        if user_role != 'admin' and not station_ids:
+            return {"kpi": {"total_stations": 0}, "charts": {}}
+
+        # If a user has stations, add them to the filter clause
+        if station_ids:
             station_filter_clause = "AND sales.STATION_ID IN :station_ids"
             params["station_ids"] = station_ids
 
         # --- 2. Dynamically build the base sales query ---
-        base_select_fields = "MAT_ID,  total_valume, PAYMENT, date_completed, ID_type, STATION_ID"
-
+        base_select_fields = "MAT_ID, total_valume, PAYMENT, date_completed, ID_type, STATION_ID"
         available_years = [2023, 2024, 2025]
 
-        if year and year in available_years:
-            base_query = f"(SELECT {base_select_fields} FROM summary_station_{year}_materialized)"
-        else:
-            union_parts = [
-                f"(SELECT {base_select_fields} FROM summary_station_{y}_materialized)"
-                for y in available_years
-            ]
-            base_query = " UNION ALL ".join(union_parts)
+        # Determine which yearly tables to query
+        years_to_query = [year] if year and year in available_years else available_years
+        union_parts = [
+            f"(SELECT {base_select_fields} FROM summary_station_{y}_materialized)"
+            for y in years_to_query
+        ]
+        if not union_parts:
+            # If no valid year is provided or available, return with the station count
+            return {"kpi": {"total_stations": total_stations_count}, "charts": {}}
 
-        # --- 3. Build WHERE clause ---
+        base_query = " UNION ALL ".join(union_parts)
+
+        # --- 3. Build WHERE clause for filtering sales data ---
         where_clauses = []
         if id_type:
             where_clauses.append("sales.ID_type = :id_type")
@@ -81,18 +98,14 @@ def get_dashboard_data(
             where_clauses.append("EXTRACT(DAY FROM sales.date_completed) = :day")
             params["day"] = day
 
-        # Combine all filters
         where_string = ""
         if where_clauses:
             where_string = f"WHERE {' AND '.join(where_clauses)} {station_filter_clause}"
         elif station_filter_clause:
+            # Apply station filter even if no other filters are present
             where_string = f"WHERE 1=1 {station_filter_clause}"
 
-
-        # --- 4. Execute Queries ---
-        station_count_query = text("SELECT COUNT(id) as total_stations FROM station_info WHERE active = 1")
-        station_count_result = db.execute(station_count_query).first()
-
+        # --- 4. Execute Sales Data Queries ---
         total_volume_query = text(f"""
             SELECT
                 SUM(CASE WHEN sales.MAT_ID = '500033' THEN sales.total_valume ELSE 0 END) as hds_volume,
@@ -123,10 +136,10 @@ def get_dashboard_data(
 
         return {
             "kpi": {
-                "total_stations": station_count_result._mapping['total_stations'] if station_count_result else 0,
-                "hds_volume": float(total_volume_result._mapping['hds_volume'] or 0),
-                "ulg95_volume": float(total_volume_result._mapping['ulg95_volume'] or 0),
-                "ulr91_volume": float(total_volume_result._mapping['ulr91_volume'] or 0),
+                "total_stations": total_stations_count,
+                "hds_volume": float(total_volume_result._mapping['hds_volume'] or 0) if total_volume_result else 0,
+                "ulg95_volume": float(total_volume_result._mapping['ulg95_volume'] or 0) if total_volume_result else 0,
+                "ulr91_volume": float(total_volume_result._mapping['ulr91_volume'] or 0) if total_volume_result else 0,
             },
             "charts": {
                 "sales_by_payment": [dict(row._mapping) for row in payment_chart_result],

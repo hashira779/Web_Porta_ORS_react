@@ -12,7 +12,7 @@ import {
   RoleDetailsUpdate,
   PermissionCreate,
   Sale,
-  AreaUpdate, StationSuggestion, UserHistorySummary, UserHistoryResponse
+  AreaUpdate, StationSuggestion, UserHistorySummary, UserHistoryResponse, SendTelegramReportRequest
 } from '../types';
 
 interface FilterParams {
@@ -114,5 +114,9 @@ export const adminTerminateUserSessions = (userId: number) => api.post(`/admin/t
 export const adminGetUsersWithHistory = () => api.get<UserHistorySummary[]>(`/admin/sessions/history-summary`);
 
 export const adminGetHistoryForUser = (userId: number) => api.get<UserHistoryResponse>(`/admin/sessions/history/${userId}`);
+
+export const sendTelegramReport = (payload: SendTelegramReportRequest) =>
+    api.post('/telegram/reports/send-telegram', payload);
+
 export default api;
 

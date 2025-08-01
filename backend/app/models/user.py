@@ -13,20 +13,20 @@ role_permission_association = Table(
 )
 
 user_area_association = Table(
-    'user_area_assignments', Base.metadata,
-    Column('user_id', Integer, ForeignKey('users_tb.id'), primary_key=True),
-    Column('area_id', Integer, ForeignKey('areas_tb.id'), primary_key=True)
+    'user_areas', Base.metadata,
+    Column('user_id', Integer, ForeignKey('users_tb.id', ondelete='CASCADE'), primary_key=True),
+    Column('area_id', Integer, ForeignKey('areas_tb.id', ondelete='CASCADE'), primary_key=True)
 )
 
 user_station_association = Table(
     'user_station_assignments', Base.metadata,
-    Column('user_id', Integer, ForeignKey('users_tb.id'), primary_key=True),
-    Column('station_id', Integer, ForeignKey('station_info.id'), primary_key=True)
+    Column('user_id', Integer, ForeignKey('users_tb.id', ondelete='CASCADE'), primary_key=True),
+    Column('station_id', Integer, ForeignKey('station_info.id', ondelete='CASCADE'), primary_key=True)
 )
-
 class User(Base):
     __tablename__ = 'users_tb'
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(100), unique=True, index=True, nullable=True) # This will be the Telegram Chat ID
     username = Column(String(100), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
