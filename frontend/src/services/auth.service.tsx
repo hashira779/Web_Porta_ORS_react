@@ -3,7 +3,6 @@ import { getMyProfile } from '../api/api';
 
 const API_URL = "/api"; // Use relative URL for the proxy
 
-// --- Login Function (No changes needed here) ---
 const login = async (username: string, password: string) => {
   const formData = new URLSearchParams();
   formData.append('username', username);
@@ -12,38 +11,31 @@ const login = async (username: string, password: string) => {
   const tokenResponse = await axios.post(API_URL + "/token", formData);
 
   if (tokenResponse.data.access_token) {
-    localStorage.setItem("user", JSON.stringify(tokenResponse.data));
+    // Store only the token initially
+    localStorage.setItem("authToken", tokenResponse.data.access_token);
+
+    // Fetch the full user profile to get roles and permissions
     const profileResponse = await getMyProfile();
-    const fullUserData = { ...tokenResponse.data, ...profileResponse.data };
-    localStorage.setItem("user", JSON.stringify(fullUserData));
-    return fullUserData;
+
+    // Combine token and profile into a single user object in local storage
+    const user = {
+      token: tokenResponse.data.access_token,
+      ...profileResponse.data
+    };
+    localStorage.setItem("user", JSON.stringify(user));
+
+    return user;
   }
 };
 
 // --- CORRECTED Logout Function ---
-const logout = async () => {
-  try {
-    // Get the current user's token to send with the logout request
-    const token = getCurrentUserToken();
-    if (token) {
-      // Step 1: Call the backend /logout endpoint
-      await axios.post(API_URL + "/logout", {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-    }
-  } catch (error) {
-    // Log the error but continue with logout process
-    console.error("Logout API call failed:", error);
-  } finally {
-    // Step 2: Always remove user from local storage and redirect
-    localStorage.removeItem("user");
-    window.location.href = '/login';
-  }
+// The logout function should be simple: just clear local storage.
+// The redirection will be handled by the application's routing logic.
+const logout = () => {
+  localStorage.removeItem("user");
+  localStorage.removeItem("authToken");
 };
 
-// --- Helper functions (No changes needed here) ---
 const getCurrentUser = () => {
   const userStr = localStorage.getItem("user");
   if (userStr) return JSON.parse(userStr);
@@ -51,8 +43,8 @@ const getCurrentUser = () => {
 };
 
 const getCurrentUserToken = (): string | null => {
-  const user = getCurrentUser();
-  return user?.access_token || null;
+  // Prefer the simple token storage for reliability
+  return localStorage.getItem("authToken");
 };
 
 const authService = {
