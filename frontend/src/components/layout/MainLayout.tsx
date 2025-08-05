@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { motion, Transition } from 'framer-motion';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import {Bars3Icon, XMarkIcon} from "@heroicons/react/24/outline";
 
 // --- Custom Hook to detect screen size ---
 const useMediaQuery = (query: string): boolean => {
@@ -39,7 +40,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         const handleMouseMove = () => {
             setIsButtonVisible(true);
             clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => setIsButtonVisible(false), 2000); // Hide after 2 seconds of inactivity
+            timeoutId = setTimeout(() => setIsButtonVisible(false), 2000);
         };
         window.addEventListener('mousemove', handleMouseMove);
         return () => {
@@ -48,25 +49,43 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!isDesktop) {
+            setIsOpen(false); // Hide on mobile
+        } else {
+            setIsOpen(true); // Show on desktop
+        }
+    }, [isDesktop]);
+
     return (
         <div className="flex bg-gray-100 min-h-screen">
             <Sidebar isOpen={isOpen} setIsOpen={setIsOpen} />
             <motion.div
                 className="flex-1 flex flex-col"
                 initial={false}
-                animate={{ marginLeft: isDesktop ? (isOpen ? '17rem' : '5rem') : '0' }}
+                animate={{ marginLeft: isDesktop ? (isOpen ? '18rem' : '5rem') : '0' }}
                 transition={springTransition}
             >
                 <Header />
                 <main className="flex-1 p-4 sm:p-6 lg:p-8 relative">
-                    <button
-                        onClick={() => setIsOpen(!isOpen)}
-                        className={`hidden md:block fixed z-50 top-1/2 -translate-y-1/2 -ml-3.5 bg-white p-1.5 rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 ${isButtonVisible ? 'opacity-100' : 'opacity-0'}`}
-                        aria-label="Toggle sidebar"
-                        style={{ transition: 'opacity 0.3s' }}
-                    >
-                        {isOpen ? <ChevronLeftIcon className="h-4 w-4 text-gray-600" /> : <ChevronRightIcon className="h-4 w-4 text-gray-600" />}
-                    </button>
+                    {isDesktop ? (
+                        <button
+                            onClick={() => setIsOpen(!isOpen)}
+                            className={`fixed z-50 top-1/2 -translate-y-1/2 -ml-3.5 bg-white p-1.5 rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 ${isButtonVisible ? 'opacity-100' : 'opacity-0'}`}
+                            aria-label="Toggle sidebar"
+                            style={{ transition: 'opacity 0.3s' }}
+                        >
+                            {isOpen ? <ChevronLeftIcon className="h-4 w-4 text-gray-600" /> : <ChevronRightIcon className="h-4 w-4 text-gray-600" />}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setIsOpen(!isOpen)}
+                            className="fixed top-4 left-4 z-50 bg-indigo-700 p-2.5 rounded-xl text-white shadow-lg transition-all duration-200"
+                            aria-label="Toggle sidebar"
+                        >
+                            {isOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
+                        </button>
+                    )}
                     {children}
                 </main>
                 <footer className="bg-white p-4 shadow-inner text-center text-gray-600">

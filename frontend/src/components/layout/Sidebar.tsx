@@ -66,10 +66,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     ];
 
     useEffect(() => {
-        if (window.innerWidth < 768) {
-            setIsOpen(false);
-        }
-    }, [location, setIsOpen]);
+        const handleResize = () => {
+            if (window.innerWidth < 768) {
+                setIsOpen(false); // Hide on mobile
+            } else {
+                setIsOpen(true); // Show on desktop
+            }
+        };
+        handleResize(); // Initial check
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [setIsOpen]);
 
     useEffect(() => {
         const newExpandedItems = { ...expandedItems };
@@ -124,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             {filteredNavItems.length > 0 && (
                 <button
                     aria-label={isOpen ? "Close menu" : "Open menu"}
-                    className="md:hidden fixed top-4 left-4 z-50 bg-indigo-700 p-2.5 rounded-xl text-white shadow-lg transition-all duration-200"
+                    className="fixed top-4 left-4 z-50 bg-indigo-700 p-2.5 rounded-xl text-white shadow-lg transition-all duration-200 md:hidden"
                     onClick={() => setIsOpen(!isOpen)}
                 >
                     {isOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
@@ -134,11 +141,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        className="md:hidden fixed inset-0 bg-black/50 z-30 backdrop-blur-sm"
+                        className="fixed inset-0 bg-black/50 z-30 backdrop-blur-sm md:hidden"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        onClick={() => setIsOpen(false)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOpen(false);
+                        }}
                     />
                 )}
             </AnimatePresence>
@@ -146,11 +156,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             <motion.aside
                 initial={false}
                 animate={{
-                    width: isOpen ? '18rem' : '4.5rem',
-                    boxShadow: isHovered && !isOpen ? '0 0 20px rgba(99, 102, 241, 0.3)' : 'none'
+                    width: isOpen ? (window.innerWidth >= 768 ? '18rem' : '18rem') : (window.innerWidth >= 768 ? '5rem' : '0'),
+                    opacity: isOpen ? 1 : (window.innerWidth >= 768 ? 1 : 0),
+                    pointerEvents: isOpen || window.innerWidth >= 768 ? 'auto' : 'none'
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed top-0 left-0 h-screen bg-gradient-to-b from-gray-900 to-gray-950 flex flex-col z-40 border-r border-gray-800/50"
+                className="fixed top-0 left-0 h-screen bg-gradient-to-b from-gray-900 to-gray-950 flex flex-col z-40 border-r border-gray-800/50 overflow-hidden"
                 onHoverStart={() => setIsHovered(true)}
                 onHoverEnd={() => setIsHovered(false)}
             >
@@ -188,7 +199,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                                 <item.icon className="h-6 w-6" />
                                                 {isOpen && <span className="text-sm font-medium">{item.label}</span>}
                                             </div>
-                                            {!isOpen && (
+                                            {!isOpen && window.innerWidth >= 768 && (
                                                 <motion.span
                                                     className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50"
                                                     initial={{ opacity: 0 }}
@@ -248,7 +259,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                             <item.icon className="h-6 w-6" />
                                             {isOpen && <span className="text-sm font-medium">{item.label}</span>}
                                         </div>
-                                        {!isOpen && (
+                                        {!isOpen && window.innerWidth >= 768 && (
                                             <motion.span
                                                 className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50"
                                                 initial={{ opacity: 0 }}
@@ -257,7 +268,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                                                 {item.label}
                                             </motion.span>
                                         )}
-                                        {isItemActive(item) && !isOpen && (
+                                        {isItemActive(item) && !isOpen && window.innerWidth >= 768 && (
                                             <motion.span
                                                 className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-indigo-500 rounded-full"
                                                 initial={{ scale: 0 }}
