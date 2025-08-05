@@ -14,6 +14,7 @@ import SettingsPage from './pages/settings/SettingsPage';
 import AreaAssignmentsPage from './pages/assignments/AreaAssignmentsPage';
 import StationAssignmentsPage from './pages/assignments/StationAssignmentsPage';
 import SessionManagementPage from './pages/admin/SessionManagementPage';
+import WebViewer from './pages/webViewer/WebViewPage';
 
 // Access Denied Component
 const AccessDenied: React.FC = () => {
@@ -101,6 +102,11 @@ const routeConfig = [
     path: '/sessions',
     element: <SessionManagementPage />,
     permissions: 'manage_sessions'
+  },
+  {
+    path: '/webviewer',
+    element: <WebViewer />,
+    permissions: 'web_viewer'
   },
   { path: '/', element: <Navigate to="/dashboard" replace /> },
 ];
