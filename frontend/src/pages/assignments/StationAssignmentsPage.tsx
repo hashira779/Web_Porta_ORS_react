@@ -1,73 +1,66 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminGetStations, adminGetAllUsers, adminGetRoles, adminAssignStationsToOwner } from '../../api/api';
 import { StationInfo, User, Role } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MagnifyingGlassIcon as FiSearch,
-    XMarkIcon as FiX,
     UserIcon as FiUser,
-    MapPinIcon as FiMapPin,
     ArrowDownTrayIcon as FiSave,
     FunnelIcon as FiFilter,
     CheckCircleIcon,
-    ExclamationCircleIcon
+    ExclamationCircleIcon,
+    ChevronUpDownIcon,
+    CheckIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
-
-const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({
-                                                                                                    message,
-                                                                                                    type,
-                                                                                                    onDismiss
-                                                                                                }) => {
-    useEffect(() => {
-        const timer = setTimeout(() => onDismiss(), 4000);
-        return () => clearTimeout(timer);
-    }, [onDismiss]);
-
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 50, scale: 0.3 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.5 }}
-            className={`fixed bottom-6 right-6 flex items-center p-4 rounded-xl shadow-2xl z-50 border border-opacity-20 ${
-                type === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-rose-600 text-white border-rose-400'
-            }`}
-        >
-            {type === 'success' ? (
-                <CheckCircleIcon className="w-6 h-6 mr-3" />
-            ) : (
-                <ExclamationCircleIcon className="w-6 h-6 mr-3" />
-            )}
-            <span className="text-sm font-medium tracking-wide">{message}</span>
-        </motion.div>
-    );
+type ToastProps = {
+    message: string;
+    type: 'success' | 'error';
+    onDismiss: () => void;
 };
-
-const StationAssignmentsPage: React.FC = () => {
+const Toast: React.FC<ToastProps> = ({ message, type, onDismiss }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        className={`fixed bottom-6 right-6 flex items-center p-4 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+        }`}
+    >
+        {type === 'success' ? (
+            <CheckCircleIcon className="w-5 h-5 mr-2 text-green-600" />
+        ) : (
+            <ExclamationCircleIcon className="w-5 h-5 mr-2 text-red-600" />
+        )}
+        <span className="text-sm font-medium">{message}</span>
+        <button onClick={onDismiss} className="ml-4 text-gray-400 hover:text-gray-500">
+            <XMarkIcon className="w-4 h-4" />
+        </button>
+    </motion.div>
+);
+const StationAssignmentsPage = () => {
     const [stations, setStations] = useState<StationInfo[]>([]);
     const [owners, setOwners] = useState<User[]>([]);
     const [selectedOwner, setSelectedOwner] = useState<User | null>(null);
     const [assignedStationIds, setAssignedStationIds] = useState<Set<number>>(new Set());
-    const [globallyAssignedStationIds, setGloballyAssignedStationIds] = useState<Map<number, number>>(new Map());
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [ownerSearchTerm, setOwnerSearchTerm] = useState('');
     const [showAssignedOnly, setShowAssignedOnly] = useState(false);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const observerRef = useRef<IntersectionObserver | null>(null);
-    const lastStationRef = useRef<HTMLDivElement | null>(null);
+    const [sortConfig, setSortConfig] = useState({ key: 'station_name', direction: 'asc' });
 
-    const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
+    const showToast = (message: string, type: 'success' | 'error') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
 
-    const fetchData = useCallback(async (pageNum: number = 1) => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [stationsRes, usersRes, rolesRes] = await Promise.all([
-                adminGetStations(pageNum, 20), // Assuming pagination with page and limit
+                adminGetStations(),
                 adminGetAllUsers(),
                 adminGetRoles(),
             ]);
@@ -76,63 +69,42 @@ const StationAssignmentsPage: React.FC = () => {
             const ownerUsers = ownerRole ? usersRes.data.filter(u => u.role?.id === ownerRole.id) : [];
 
             setOwners(ownerUsers);
-
-            const assignedMap = new Map<number, number>();
-            stationsRes.data.forEach(station => {
-                if (station.owners && station.owners.length > 0) {
-                    assignedMap.set(station.id, station.owners[0].id);
-                }
-            });
-
-            // Update stations based on page
-            if (pageNum === 1) {
-                setStations(stationsRes.data);
-            } else {
-                setStations(prev => [...prev, ...stationsRes.data]);
-            }
-
-            setGloballyAssignedStationIds(assignedMap);
+            setStations(stationsRes.data);
 
             if (ownerUsers.length > 0) {
-                const current = selectedOwner ? ownerUsers.find(o => o.id === selectedOwner.id) : null;
-                handleOwnerSelect(current || ownerUsers[0]);
+                handleOwnerSelect(ownerUsers[0]);
             }
-
-            // Check if there are more stations to load
-            setHasMore(stationsRes.data.length === 20); // Adjust based on API response structure
         } catch (err) {
-            showToast("Failed to load data.", "error");
+            showToast("Failed to load data. Please try again.", "error");
         } finally {
             setIsLoading(false);
-            setIsLoadingMore(false);
         }
-    }, [selectedOwner]);
+    }, []);
 
     useEffect(() => {
-        fetchData(1);
-    }, []);
+        fetchData();
+    }, [fetchData]);
 
     const handleOwnerSelect = (owner: User) => {
         setSelectedOwner(owner);
-        const currentlyAssigned = new Set(owner.owned_stations.map(station => station.id));
-        setAssignedStationIds(currentlyAssigned);
+        setAssignedStationIds(new Set(owner.owned_stations?.map(station => station.id) || []));
     };
 
     const handleStationToggle = (stationId: number) => {
         setAssignedStationIds(prev => {
-            const newSelection = new Set(prev);
-            newSelection.has(stationId) ? newSelection.delete(stationId) : newSelection.add(stationId);
-            return newSelection;
+            const newSet = new Set(prev);
+            newSet.has(stationId) ? newSet.delete(stationId) : newSet.add(stationId);
+            return newSet;
         });
     };
 
-    const handleSaveChanges = async () => {
+    const handleSave = async () => {
         if (!selectedOwner) return;
         setIsSaving(true);
         try {
             await adminAssignStationsToOwner(selectedOwner.id, Array.from(assignedStationIds));
-            showToast("Stations assigned successfully!", "success");
-            await fetchData(1); // Refresh data after saving
+            showToast("Assignments saved successfully!", "success");
+            fetchData();
         } catch (err) {
             showToast("Failed to save assignments.", "error");
         } finally {
@@ -140,158 +112,140 @@ const StationAssignmentsPage: React.FC = () => {
         }
     };
 
+    const requestSort = (key: keyof StationInfo) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+
+    const sortedStations = useMemo(() => {
+        const sortableItems = [...stations];
+        if (sortConfig.key) {
+            sortableItems.sort((a, b) => {
+                const aValue = a[sortConfig.key as keyof StationInfo];
+                const bValue = b[sortConfig.key as keyof StationInfo];
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [stations, sortConfig]);
+
     const filteredStations = useMemo(() => {
-        return stations.filter(station => {
+        return sortedStations.filter(station => {
             const matchesSearch = station.station_name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesFilter = showAssignedOnly ? assignedStationIds.has(station.id) : true;
             return matchesSearch && matchesFilter;
         });
-    }, [stations, searchTerm, assignedStationIds, showAssignedOnly]);
+    }, [sortedStations, searchTerm, showAssignedOnly, assignedStationIds]);
 
     const filteredOwners = useMemo(() => {
         return owners.filter(owner =>
-            owner.username.toLowerCase().includes(ownerSearchTerm.toLowerCase())
+            owner.username.toLowerCase().includes(ownerSearchTerm.toLowerCase()) ||
+            owner.email?.toLowerCase().includes(ownerSearchTerm.toLowerCase())
         );
     }, [owners, ownerSearchTerm]);
 
-    // Infinite scroll logic
-    const loadMore = useCallback(() => {
-        if (hasMore && !isLoadingMore && !isLoading) {
-            setIsLoadingMore(true);
-            setPage(prev => prev + 1);
-            fetchData(page + 1);
-        }
-    }, [hasMore, isLoadingMore, isLoading, page, fetchData]);
-
-    useEffect(() => {
-        if (observerRef.current) observerRef.current.disconnect();
-
-        observerRef.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
-                loadMore();
-            }
-        });
-
-        if (lastStationRef.current) {
-            observerRef.current.observe(lastStationRef.current);
-        }
-
-        return () => {
-            if (observerRef.current) observerRef.current.disconnect();
-        };
-    }, [loadMore, hasMore]);
-
-    if (isLoading && page === 1) return (
-        <div className="flex justify-center items-center h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-        </div>
-    );
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 md:p-10">
+        <div className="min-h-screen bg-gray-50 p-6">
             <AnimatePresence>
                 {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
             </AnimatePresence>
 
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="max-w-7xl mx-auto"
-            >
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Station Owner Assignments</h1>
-                        <p className="text-gray-600 mt-2 text-sm">Manage station ownership assignments with ease</p>
-                    </div>
-                    <div className="mt-4 md:mt-0">
-                        <button
-                            onClick={handleSaveChanges}
-                            disabled={isSaving || !selectedOwner}
-                            className="flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-xl shadow-lg hover:shadow-xl disabled:opacity-50 transition-all duration-300"
-                        >
-                            <FiSave className="mr-2 w-5 h-5" />
-                            {isSaving ? 'Saving...' : 'Save Assignments'}
-                        </button>
-                    </div>
+            <div className="max-w-7xl mx-auto">
+                <div className="mb-8">
+                    <h1 className="text-2xl font-bold text-gray-900">Station Owner Assignments</h1>
+                    <p className="text-gray-600 mt-1">Manage station ownership assignments with ease</p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* Owners Panel */}
-                    <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                        <div className="p-6 border-b border-gray-100">
+                    <div className="lg:col-span-1 bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div className="p-4 border-b border-gray-200">
                             <h2 className="text-lg font-semibold flex items-center text-gray-900">
-                                <FiUser className="mr-2 text-indigo-600 w-5 h-5" />
+                                <FiUser className="mr-2 w-5 h-5 text-indigo-600" />
                                 Select Owner
                             </h2>
-                            <div className="mt-4 relative">
+                            <div className="mt-3 relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <FiSearch className="text-gray-400 w-5 h-5" />
+                                    <FiSearch className="text-gray-400 w-4 h-4" />
                                 </div>
                                 <input
                                     type="text"
                                     placeholder="Search owners..."
-                                    className="pl-10 w-full py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-gray-50"
+                                    className="pl-9 w-full py-2 border border-gray-200 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                                     value={ownerSearchTerm}
                                     onChange={(e) => setOwnerSearchTerm(e.target.value)}
                                 />
                             </div>
                         </div>
-                        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-                            <ul className="divide-y divide-gray-100">
-                                {filteredOwners.length > 0 ? (
-                                    filteredOwners.map(owner => (
-                                        <li key={owner.id}>
-                                            <button
-                                                onClick={() => handleOwnerSelect(owner)}
-                                                className={`w-full text-left px-6 py-4 flex items-center justify-between transition-all duration-200 ${
-                                                    selectedOwner?.id === owner.id
-                                                        ? 'bg-indigo-50 text-indigo-700'
-                                                        : 'hover:bg-gray-50'
-                                                }`}
-                                            >
-                                                <span className="font-medium text-gray-900">{owner.username}</span>
-                                                <span className="text-xs bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full">
-                                                    {owner.owned_stations.length} stations
+                        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+                            <ul className="divide-y divide-gray-200">
+                                {filteredOwners.map(owner => (
+                                    <li key={owner.id}>
+                                        <button
+                                            onClick={() => handleOwnerSelect(owner)}
+                                            className={`w-full text-left px-4 py-3 text-sm ${
+                                                selectedOwner?.id === owner.id
+                                                    ? 'bg-indigo-50 text-indigo-700'
+                                                    : 'hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-medium">{owner.username}</span>
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                                    {owner.owned_stations?.length || 0}
                                                 </span>
-                                            </button>
-                                        </li>
-                                    ))
-                                ) : (
-                                    <li className="px-6 py-4 text-center text-gray-500">
-                                        No owners found
+                                            </div>
+                                            {owner.email && (
+                                                <div className="text-xs text-gray-500 truncate mt-1">{owner.email}</div>
+                                            )}
+                                        </button>
                                     </li>
-                                )}
+                                ))}
                             </ul>
                         </div>
                     </div>
 
                     {/* Stations Panel */}
-                    <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                    <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border border-gray-200">
                         {selectedOwner ? (
-                            <div className="h-full flex flex-col">
-                                <div className="p-6 border-b border-gray-100">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between">
-                                        <h2 className="text-lg font-semibold flex items-center mb-3 md:mb-0 text-gray-900">
-                                            <FiMapPin className="mr-2 text-indigo-600 w-5 h-5" />
-                                            Assign Stations for <span className="text-indigo-600 ml-1 font-medium">{selectedOwner.username}</span>
-                                        </h2>
-                                        <div className="flex space-x-3">
+                            <div className="flex flex-col h-full">
+                                <div className="p-4 border-b border-gray-200">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-lg font-semibold text-gray-900">
+                                                Assign Stations for <span className="text-indigo-600">{selectedOwner.username}</span>
+                                            </h2>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                {assignedStationIds.size} of {stations.length} stations selected
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row gap-2">
                                             <div className="relative">
                                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                    <FiSearch className="text-gray-400 w-5 h-5" />
+                                                    <FiSearch className="text-gray-400 w-4 h-4" />
                                                 </div>
                                                 <input
                                                     type="text"
                                                     placeholder="Search stations..."
-                                                    className="pl-10 w-full py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-gray-50"
+                                                    className="pl-9 w-full sm:w-64 py-2 border border-gray-200 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
                                                     value={searchTerm}
                                                     onChange={(e) => setSearchTerm(e.target.value)}
                                                 />
                                             </div>
                                             <button
                                                 onClick={() => setShowAssignedOnly(!showAssignedOnly)}
-                                                className={`flex items-center px-4 py-2.5 border rounded-xl transition-all duration-200 ${
+                                                className={`flex items-center px-3 py-2 border rounded-md text-sm ${
                                                     showAssignedOnly
                                                         ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                                                         : 'border-gray-200 text-gray-700 hover:bg-gray-50'
@@ -304,96 +258,126 @@ const StationAssignmentsPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto p-6">
-                                    {filteredStations.length > 0 ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {filteredStations.map((station, index) => {
-                                                const assignedToAnother = globallyAssignedStationIds.has(station.id) &&
-                                                    globallyAssignedStationIds.get(station.id) !== selectedOwner.id;
-                                                const isLastStation = index === filteredStations.length - 1;
-                                                return (
-                                                    <motion.div
-                                                        key={station.id}
-                                                        ref={isLastStation ? lastStationRef : null}
-                                                        whileHover={{ scale: 1.03 }}
-                                                        className={`p-5 rounded-xl border transition-all duration-200 ${
-                                                            assignedStationIds.has(station.id)
-                                                                ? 'border-indigo-200 bg-indigo-50'
-                                                                : 'border-gray-100 hover:border-gray-200 hover:shadow-md'
-                                                        } ${
-                                                            assignedToAnother ? 'opacity-70' : ''
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-start">
-                                                            <input
-                                                                type="checkbox"
-                                                                id={`station-${station.id}`}
-                                                                checked={assignedStationIds.has(station.id)}
-                                                                onChange={() => handleStationToggle(station.id)}
-                                                                disabled={assignedToAnother}
-                                                                className={`mt-1 h-4 w-4 text-indigo-600 rounded focus:ring-indigo-500 ${
-                                                                    assignedToAnother ? 'cursor-not-allowed' : 'cursor-pointer'
-                                                                }`}
-                                                            />
-                                                            <label
-                                                                htmlFor={`station-${station.id}`}
-                                                                className={`ml-3 flex-1 ${
-                                                                    assignedToAnother ? 'text-gray-400' : 'text-gray-800'
-                                                                }`}
-                                                            >
-                                                                <div className="font-medium text-gray-900">{station.station_name}</div>
-                                                                {assignedToAnother && (
-                                                                    <div className="text-xs text-rose-500 mt-1.5">
-                                                                        Already assigned to another owner
-                                                                    </div>
-                                                                )}
-                                                            </label>
-                                                        </div>
-                                                    </motion.div>
-                                                );
-                                            })}
-                                            {isLoadingMore && (
-                                                <div className="col-span-full flex justify-center items-center py-4">
-                                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                                <div className="flex-1 overflow-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                                        checked={filteredStations.length > 0 && filteredStations.every(s => assignedStationIds.has(s.id))}
+                                                        onChange={() => {
+                                                            const allSelected = filteredStations.every(s => assignedStationIds.has(s.id));
+                                                            const newSelection = new Set(assignedStationIds);
+                                                            filteredStations.forEach(station => {
+                                                                allSelected ? newSelection.delete(station.id) : newSelection.add(station.id);
+                                                            });
+                                                            setAssignedStationIds(newSelection);
+                                                        }}
+                                                    />
                                                 </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                                            <FiX className="text-4xl mb-3" />
-                                            <p className="text-gray-600">No stations found matching your criteria</p>
-                                        </div>
-                                    )}
+                                            </th>
+                                            <th
+                                                scope="col"
+                                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                                onClick={() => requestSort('station_name')}
+                                            >
+                                                <div className="flex items-center">
+                                                    Station Name
+                                                    <ChevronUpDownIcon className="ml-1 w-4 h-4 text-gray-400" />
+                                                    {sortConfig.key === 'station_name' && (
+                                                        <span className="ml-1 text-xs">
+                                                                {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                                            </span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                        </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredStations.length > 0 ? (
+                                            filteredStations.map(station => (
+                                                <tr key={station.id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                                            checked={assignedStationIds.has(station.id)}
+                                                            onChange={() => handleStationToggle(station.id)}
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm font-medium text-gray-900">{station.station_name}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {assignedStationIds.has(station.id) ? (
+                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                                    Assigned
+                                                                </span>
+                                                        ) : (
+                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                                    Unassigned
+                                                                </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500">
+                                                    No stations found matching your criteria
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </tbody>
+                                    </table>
                                 </div>
 
-                                <div className="p-6 border-t border-gray-100 bg-gray-50">
+                                <div className="p-4 border-t border-gray-200 bg-gray-50">
                                     <div className="flex justify-between items-center">
                                         <div className="text-sm text-gray-600">
-                                            {assignedStationIds.size} of {filteredStations.length} stations selected
+                                            Showing <span className="font-medium">{filteredStations.length}</span> of <span className="font-medium">{stations.length}</span> stations
                                         </div>
                                         <button
-                                            onClick={handleSaveChanges}
+                                            onClick={handleSave}
                                             disabled={isSaving}
-                                            className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-xl shadow hover:bg-indigo-700 disabled-opacity-50 flex items-center transition-all duration-200"
+                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                                         >
-                                            <FiSave className="mr-2 w-5 h-5" />
-                                            {isSaving ? 'Saving...' : 'Save Changes'}
+                                            {isSaving ? (
+                                                <>
+                                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FiSave className="-ml-1 mr-2 h-4 w-4" />
+                                                    Save Assignments
+                                                </>
+                                            )}
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                                <FiUser className="text-4xl mb-3" />
-                                <p className="text-gray-600">Please select an owner to manage their stations</p>
+                            <div className="p-8 text-center">
+                                <FiUser className="mx-auto h-12 w-12 text-gray-400" />
+                                <h3 className="mt-2 text-sm font-medium text-gray-900">No owner selected</h3>
+                                <p className="mt-1 text-sm text-gray-500">Select an owner from the list to manage their stations</p>
                             </div>
                         )}
                     </div>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 };
-
 
 export default StationAssignmentsPage;
