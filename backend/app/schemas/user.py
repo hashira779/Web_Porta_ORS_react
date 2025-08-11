@@ -13,6 +13,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     role_id: int
+    user_id: Optional[str] = None # <-- ADD THIS LINE
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
@@ -20,8 +21,9 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     role_id: Optional[int] = None
     is_active: Optional[bool] = None
-    managed_area_ids: Optional[List[int]] = None  # List of area IDs to assign
-    owned_station_ids: Optional[List[int]] = None  # List of station IDs to assign
+    user_id: Optional[str] = None # <-- ADD THIS LINE
+    managed_area_ids: Optional[List[int]] = None
+    owned_station_ids: Optional[List[int]] = None
 
     class Config:
         from_attributes = True
@@ -45,6 +47,7 @@ class StationSimple(BaseModel):
 class User(UserBase):
     id: int
     is_active: bool
+    user_id: Optional[str] = None
     role: Optional[Role] = None
     managed_areas: List[AreaSimple] = []
     owned_stations: List[StationSimple] = [] # This will now work correctly

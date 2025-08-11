@@ -3,7 +3,9 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { motion, Transition } from 'framer-motion';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
-import {Bars3Icon, XMarkIcon} from "@heroicons/react/24/outline";
+import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import useWebSocketNotifications from '../../hooks/useWebSocketNotifications';
+import TerminationModal from '../common/TerminationModal';
 
 // --- Custom Hook to detect screen size ---
 const useMediaQuery = (query: string): boolean => {
@@ -25,6 +27,19 @@ interface MainLayoutProps {
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+    // --- State for the new termination modal ---
+    const [isTerminationModalOpen, setTerminationModalOpen] = useState(false);
+    const [terminationMessage, setTerminationMessage] = useState('');
+
+    const showTerminationModal = (message: string) => {
+        setTerminationMessage(message);
+        setTerminationModalOpen(true);
+    };
+
+    // Initialize the WebSocket hook and pass it the function to call when a session is terminated
+    useWebSocketNotifications(showTerminationModal);
+
+    // --- Original state for the sidebar layout ---
     const [isOpen, setIsOpen] = useState(true);
     const [isButtonVisible, setIsButtonVisible] = useState(false);
     const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -71,7 +86,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     {isDesktop ? (
                         <button
                             onClick={() => setIsOpen(!isOpen)}
-                            className={`fixed z-50 top-1/2 -translate-y-1/2 -ml-3.5 bg-white p-1.5 rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 ${isButtonVisible ? 'opacity-100' : 'opacity-0'}`}
+                            className={`fixed z-30 top-1/2 -translate-y-1/2 -ml-3.5 bg-white p-1.5 rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 ${isButtonVisible ? 'opacity-100' : 'opacity-0'}`}
                             aria-label="Toggle sidebar"
                             style={{ transition: 'opacity 0.3s' }}
                         >
@@ -80,7 +95,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     ) : (
                         <button
                             onClick={() => setIsOpen(!isOpen)}
-                            className="fixed top-4 left-4 z-50 bg-indigo-700 p-2.5 rounded-xl text-white shadow-lg transition-all duration-200"
+                            className="fixed top-4 left-4 z-30 bg-indigo-700 p-2.5 rounded-xl text-white shadow-lg transition-all duration-200"
                             aria-label="Toggle sidebar"
                         >
                             {isOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
@@ -92,6 +107,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     &copy; 2025 Your Company. All rights reserved.
                 </footer>
             </motion.div>
+
+            {/* --- Render the modal here --- */}
+            <TerminationModal
+                isOpen={isTerminationModalOpen}
+                message={terminationMessage}
+            />
         </div>
     );
 };

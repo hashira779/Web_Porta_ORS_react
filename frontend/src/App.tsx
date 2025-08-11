@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import MainLayout from './components/layout/MainLayout';
 import Spinner from './components/common/Spinner';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
+import Notification from './components/common/Notification'; // <-- 1. IMPORT IT HERE
 
 // Page imports
 import LoginPage from './pages/auth/LoginPage';
@@ -69,51 +70,15 @@ const ProtectedRoute: React.FC<{
 // Route configuration
 const routeConfig = [
   { path: '/login', element: <LoginPage />, public: true },
-  {
-    path: '/dashboard',
-    element: <DashboardPage />,
-    permissions: 'view_dashboard'
-  },
-  {
-    path: '/reports/:reportType',
-    element: <ReportPage />,
-    permissions: ['view_reports']
-  },
-  {
-    path: '/admin/*',
-    element: <AdminPage />,
-    permissions: 'access_admin'
-  },
-  {
-    path: '/settings',
-    element: <SettingsPage />,
-    permissions: 'edit_settings'
-  },
-  {
-    path: '/assignments/areas',
-    element: <AreaAssignmentsPage />,
-    permissions: 'assign_areas'
-  },
-  {
-    path: '/assignments/stations',
-    element: <StationAssignmentsPage />,
-    permissions: 'assign_stations'
-  },
-  {
-    path: '/sessions',
-    element: <SessionManagementPage />,
-    permissions: 'manage_sessions'
-  },
-  {
-    path: '/webviewer',
-    element: <WebViewer />,
-    permissions: 'web_viewer'
-  },
-  {
-    path: '/webviewer/admin',
-    element: <WebViewLinkManager />, // Updated to use WebViewLinkManager
-    permissions: 'web_viewer'
-  },
+  { path: '/dashboard', element: <DashboardPage />, permissions: 'view_dashboard' },
+  { path: '/reports/:reportType', element: <ReportPage />, permissions: ['view_reports'] },
+  { path: '/admin/*', element: <AdminPage />, permissions: 'access_admin' },
+  { path: '/settings', element: <SettingsPage />, permissions: 'edit_settings' },
+  { path: '/assignments/areas', element: <AreaAssignmentsPage />, permissions: 'assign_areas' },
+  { path: '/assignments/stations', element: <StationAssignmentsPage />, permissions: 'assign_stations' },
+  { path: '/sessions', element: <SessionManagementPage />, permissions: 'manage_sessions' },
+  { path: '/webviewer', element: <WebViewer />, permissions: 'web_viewer' },
+  { path: '/webviewer/admin', element: <WebViewLinkManager />, permissions: 'web_viewer' },
   { path: '/', element: <Navigate to="/dashboard" replace /> },
 ];
 
@@ -122,34 +87,37 @@ const App: React.FC = () => {
   return (
       <AuthProvider>
         <Router>
-          <Routes>
-            {routeConfig.map((route) => {
-              if (route.public) {
+          <div className="App"> {/* Add a wrapper div if you don't have one */}
+            <Routes>
+              {routeConfig.map((route) => {
+                if (route.public) {
+                  return (
+                      <Route
+                          key={route.path}
+                          path={route.path}
+                          element={route.element}
+                      />
+                  );
+                }
+
                 return (
                     <Route
                         key={route.path}
                         path={route.path}
-                        element={route.element}
+                        element={
+                          <ProtectedRoute
+                              permissions={route.permissions}
+                              adminBypass={true}
+                          >
+                            {route.element}
+                          </ProtectedRoute>
+                        }
                     />
                 );
-              }
-
-              return (
-                  <Route
-                      key={route.path}
-                      path={route.path}
-                      element={
-                        <ProtectedRoute
-                            permissions={route.permissions}
-                            adminBypass={true}
-                        >
-                          {route.element}
-                        </ProtectedRoute>
-                      }
-                  />
-              );
-            })}
-          </Routes>
+              })}
+            </Routes>
+            <Notification /> {/* <-- 2. ADD THE COMPONENT HERE */}
+          </div>
         </Router>
       </AuthProvider>
   );

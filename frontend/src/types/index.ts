@@ -19,12 +19,11 @@ export interface Area {
     name: string;
 }
 
-// CORRECTED: StationInfo now includes the 'owners' array
 export interface StationInfo {
     id: number;
     station_ID: string;
     station_name: string;
-    owners: User[]; // Each station object now knows its owners
+    owners: User[];
 }
 
 export interface User {
@@ -33,7 +32,7 @@ export interface User {
     email: string;
     is_active: boolean;
     role: Role;
-    user_id: string | null; // <-- ADDED
+    user_id: string | null;
     managed_areas: Area[];
     owned_stations: StationInfo[];
 }
@@ -44,10 +43,14 @@ export interface AreaDetail extends Area {
     managers: User[];
 }
 
+export interface StationDetail extends StationInfo {
+    owners: User[];
+}
+
 // --- API Payloads & Form Data ---
 export interface UserFormData {
     id?: number;
-    user_id: string | null; // <-- ADDED
+    user_id: string | null;
     username: string;
     email: string;
     password?: string;
@@ -55,14 +58,23 @@ export interface UserFormData {
     is_active?: boolean;
 }
 
-export interface UserCreate extends Omit<UserFormData, 'id' | 'password' | 'is_active'> {
+// --- SIMPLIFIED ---
+export interface UserCreate {
+    username: string;
+    email: string;
     password?: string;
+    role_id: number;
+    user_id: string | null;
+    is_active?: boolean;
 }
 
 export interface UserUpdate {
+    username?: string;
     email?: string;
+    user_id?: string | null;
     role_id?: number;
     is_active?: boolean;
+    password?: string;
 }
 
 export interface RoleUpdate {
@@ -83,44 +95,7 @@ export interface AreaUpdate {
     name: string;
 }
 
-
-// --- Your Existing Types ---
-export interface Sale {
-    // These fields should match the columns in your `summary_station_*_materialized` tables
-    ID_Type: string | null;
-    STATION_ID: string | null;
-    STATION: string | null;
-    AM_Name: string | null;
-    province_name: string | null;
-    date_completed: string; // Dates will come as strings
-    MAT_ID: string | null;
-    PAYMENT: string | null;
-    SHIFT_ID: number | null;
-    total_valume: number; // Use number for calculations
-    total_amount: number; // Use number for calculations
-}
-export interface StationSuggestion {
-    station_ID: string;
-    station_name: string;
-}
-
-export interface DecodedToken {
-    sub: string;
-    exp: number;
-}
-// --- NEW: Detailed Station model including its owners ---
-export interface StationDetail extends StationInfo {
-    owners: User[];
-}
-
-export interface AuthContextType {
-    currentUser: User | null;
-    loading: boolean;
-    isAuthenticated: boolean;
-    login: (username: string, password: string) => Promise<void>;
-    logout: () => void;
-}
-
+// --- Session Management ---
 export interface ActiveUser {
     user_id: number;
     username: string;
@@ -145,7 +120,20 @@ export interface UserHistoryResponse {
     username: string;
     history: SessionDetail[];
 }
-// In your types.ts file
+
+// --- Other ---
+export interface DecodedToken {
+    sub: string;
+    exp: number;
+}
+
+export interface AuthContextType {
+    currentUser: User | null;
+    loading: boolean;
+    isAuthenticated: boolean;
+    login: (username: string, password: string) => Promise<void>;
+    logout: () => void;
+}
 
 export interface SendTelegramReportRequest {
     start_date: string;
@@ -158,6 +146,25 @@ export interface WebViewLink {
     title: string;
     url: string;
     is_active: boolean;
-    created_at: string; // Will be a string from JSON
-    updated_at: string | null; // Can be null if never updated
+    created_at: string;
+    updated_at: string | null;
+}
+
+export interface StationSuggestion {
+    station_ID: string;
+    station_name: string;
+}
+
+export interface Sale {
+    ID_Type: string | null;
+    STATION_ID: string | null;
+    STATION: string | null;
+    AM_Name: string | null;
+    province_name: string | null;
+    date_completed: string;
+    MAT_ID: string | null;
+    PAYMENT: string | null;
+    SHIFT_ID: number | null;
+    total_valume: number;
+    total_amount: number;
 }
