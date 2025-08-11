@@ -15,6 +15,7 @@ import AreaAssignmentsPage from './pages/assignments/AreaAssignmentsPage';
 import StationAssignmentsPage from './pages/assignments/StationAssignmentsPage';
 import SessionManagementPage from './pages/admin/SessionManagementPage';
 import WebViewer from './pages/webViewer/WebViewPage';
+import WebViewLinkManager from './pages/webViewer/controller/WebViewLinkManager';
 
 // Access Denied Component
 const AccessDenied: React.FC = () => {
@@ -106,6 +107,11 @@ const routeConfig = [
   {
     path: '/webviewer',
     element: <WebViewer />,
+    permissions: 'web_viewer'
+  },
+  {
+    path: '/webviewer/admin',
+    element: <WebViewLinkManager />, // Updated to use WebViewLinkManager
     permissions: 'web_viewer'
   },
   { path: '/', element: <Navigate to="/dashboard" replace /> },

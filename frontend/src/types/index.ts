@@ -152,3 +152,12 @@ export interface SendTelegramReportRequest {
     end_date: string;
     roles: string[];
 }
+
+export interface WebViewLink {
+    id: number;
+    title: string;
+    url: string;
+    is_active: boolean;
+    created_at: string; // Will be a string from JSON
+    updated_at: string | null; // Can be null if never updated
+}

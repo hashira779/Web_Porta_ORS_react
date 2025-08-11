@@ -12,7 +12,7 @@ import {
   RoleDetailsUpdate,
   PermissionCreate,
   Sale,
-  AreaUpdate, StationSuggestion, UserHistorySummary, UserHistoryResponse, SendTelegramReportRequest
+  AreaUpdate, StationSuggestion, UserHistorySummary, UserHistoryResponse, SendTelegramReportRequest, WebViewLink
 } from '../types';
 
 interface FilterParams {
@@ -117,6 +117,27 @@ export const adminGetHistoryForUser = (userId: number) => api.get<UserHistoryRes
 
 export const sendTelegramReport = (payload: SendTelegramReportRequest) =>
     api.post('/telegram/reports/send-telegram', payload);
+
+// For the public viewer page (gets only active links)
+
+export const getWebViewLinks = () => api.get<WebViewLink[]>('/webview-links');
+
+// For the admin page (gets all links, active and inactive)
+export const adminGetAllWebViewLinks = () => api.get<WebViewLink[]>('/webview-links/all');
+
+// Create a new link
+export const adminCreateWebViewLink = (data: { title: string; url: string; is_active: boolean }) =>
+    api.post<WebViewLink>('/webview-links', data);
+
+// CORRECTED: Update an existing link. The 'data' payload is now a Partial,
+// meaning any of its properties can be provided.
+export const adminUpdateWebViewLink = (linkId: number, data: Partial<Omit<WebViewLink, 'id'>>) =>
+    api.put<WebViewLink>(`/webview-links/${linkId}`, data);
+
+// Delete a link
+export const adminDeleteWebViewLink = (linkId: number) =>
+    api.delete(`/webview-links/${linkId}`);
+
 
 export default api;
 
