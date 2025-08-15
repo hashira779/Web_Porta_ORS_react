@@ -1,14 +1,14 @@
-// frontend/src/components/admin/settings/RoleFormModal.tsx
+// src/components/settings/RoleFormModal.tsx
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Role } from '../../types'; // Adjust path if needed
+import { Role } from '../../types';
 
 interface RoleFormModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (roleData: { id?: number; name: string; description?: string | null }) => void;
-    role: Role | null; // Pass null for creating, a Role object for editing
+    role: Role | null;
 }
 
 const RoleFormModal: React.FC<RoleFormModalProps> = ({ isOpen, onClose, onSave, role }) => {
@@ -17,11 +17,9 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({ isOpen, onClose, onSave, 
 
     useEffect(() => {
         if (role) {
-            // Editing existing role
             setName(role.name);
             setDescription(role.description || '');
         } else {
-            // Creating new role
             setName('');
             setDescription('');
         }
@@ -30,30 +28,27 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({ isOpen, onClose, onSave, 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) {
-            // You might want to show an error message here using a toast
-            alert("Role name cannot be empty.");
             return;
         }
         onSave({ id: role?.id, name, description: description || null });
     };
 
-    if (!isOpen) return null;
-
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={onClose}
                 >
                     <motion.div
-                        className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full relative"
-                        initial={{ scale: 0.9, opacity: 0 }}
+                        className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full"
+                        initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.9, opacity: 0 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 className="text-2xl font-bold text-gray-900 mb-6">

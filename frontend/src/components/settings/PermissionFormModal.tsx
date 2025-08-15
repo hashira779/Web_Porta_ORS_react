@@ -1,14 +1,14 @@
-// frontend/src/components/admin/settings/PermissionFormModal.tsx
+// src/components/settings/PermissionFormModal.tsx
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Permission } from '../../types'; // Adjust path if needed
+import { Permission } from '../../types';
 
 interface PermissionFormModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (permissionData: { id?: number; name: string; description?: string | null }) => void;
-    permission: Permission | null; // Pass null for creating, a Permission object for editing
+    permission: Permission | null;
 }
 
 const PermissionFormModal: React.FC<PermissionFormModalProps> = ({ isOpen, onClose, onSave, permission }) => {
@@ -17,11 +17,9 @@ const PermissionFormModal: React.FC<PermissionFormModalProps> = ({ isOpen, onClo
 
     useEffect(() => {
         if (permission) {
-            // Editing existing permission
             setName(permission.name);
             setDescription(permission.description || '');
         } else {
-            // Creating new permission
             setName('');
             setDescription('');
         }
@@ -30,30 +28,27 @@ const PermissionFormModal: React.FC<PermissionFormModalProps> = ({ isOpen, onClo
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) {
-            // You might want to show an error message here using a toast
-            alert("Permission name cannot be empty.");
             return;
         }
         onSave({ id: permission?.id, name, description: description || null });
     };
 
-    if (!isOpen) return null;
-
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={onClose}
                 >
                     <motion.div
-                        className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full relative"
-                        initial={{ scale: 0.9, opacity: 0 }}
+                        className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full"
+                        initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.9, opacity: 0 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 className="text-2xl font-bold text-gray-900 mb-6">
@@ -70,7 +65,7 @@ const PermissionFormModal: React.FC<PermissionFormModalProps> = ({ isOpen, onClo
                                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="e.g., users:delete"
+                                    placeholder="e.g., view_reports"
                                     required
                                 />
                             </div>
