@@ -25,7 +25,7 @@ import {
     XMarkIcon,
     MagnifyingGlassIcon,
     Bars3Icon,
-    CogIcon // ✨ FIX: Added missing CogIcon import
+    CogIcon
 } from '@heroicons/react/24/outline';
 
 import SkeletonLoader from '../../components/settings/SkeletonLoader';
@@ -34,15 +34,18 @@ import RoleFormModal from '../../components/settings/RoleFormModal';
 import PermissionFormModal from '../../components/settings/PermissionFormModal';
 import RolePermissionEditor from '../../components/settings/RolePermissionEditor';
 
-// NOTE: Toast component is assumed to be defined here or imported.
 const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({ message, type, onDismiss }) => {
-    // ... Toast implementation from your code ...
+    useEffect(() => {
+        const timer = setTimeout(() => onDismiss(), 5000);
+        return () => clearTimeout(timer);
+    }, [onDismiss]);
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className={`fixed top-5 right-5 z-[100] flex items-center p-4 rounded-xl shadow-lg max-w-xs sm:max-w-sm ${
+            className={`fixed top-5 right-5 z-[100] flex items-center p-4 rounded-xl shadow-lg max-w-xs sm-max-w-sm ${
                 type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
             }`}
         >
@@ -55,25 +58,22 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: (
     );
 };
 
-
 const SettingsPage: React.FC = () => {
-    // --- State Management ---
+    // --- All Hooks must be at the top level ---
     const [roles, setRoles] = useState<Role[]>([]);
     const [permissions, setPermissions] = useState<Permission[]>([]);
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
     const [modalState, setModalState] = useState<{ type: 'role' | 'permission' | 'confirm' | null; data?: any }>({ type: null });
     const [searchTerm, setSearchTerm] = useState('');
     const [editingRole, setEditingRole] = useState<{ id: number; name: string } | null>(null);
-
-    // ✨ FIX: Added missing state for the sidebar tabs
     const [activeTab, setActiveTab] = useState<'roles' | 'permissions'>('roles');
 
-    // --- Core Functions ---
-    const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
+    const handleToastDismiss = useCallback(() => {
+        setToast(null);
+    }, []);
 
     const fetchData = useCallback(async () => {
         try {
@@ -81,7 +81,8 @@ const SettingsPage: React.FC = () => {
             setRoles(rolesRes.data);
             setPermissions(permsRes.data);
         } catch (error) {
-            showToast("Failed to load settings data.", "error");
+            // Using a function to set state avoids stale closures
+            setToast({ message: "Failed to load settings data.", type: "error" });
         }
     }, []);
 
@@ -104,7 +105,9 @@ const SettingsPage: React.FC = () => {
             role.name.toLowerCase().includes(searchTerm.toLowerCase())
         ), [roles, searchTerm]);
 
-    // --- Action Handlers ---
+    // --- All Handler functions ---
+    const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
+
     const handleSaveRole = async (roleData: { id?: number; name: string; description?: string | null }) => {
         try {
             if (roleData.id) {
@@ -161,11 +164,11 @@ const SettingsPage: React.FC = () => {
         } catch (error) { showToast("Failed to rename role.", "error"); } finally { setEditingRole(null); }
     };
 
+    // ✨ FIX: The early return is now AFTER all hooks have been called.
     if (isLoading && roles.length === 0) {
         return <SkeletonLoader />;
     }
 
-    // --- JSX ---
     const sidebarContent = (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80">
             <div className="p-2 border-b border-gray-200/80">
@@ -262,6 +265,7 @@ const SettingsPage: React.FC = () => {
         </div>
     );
 
+    // --- Main Return Statement ---
     return (
         <div className="min-h-screen bg-gray-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
@@ -280,7 +284,7 @@ const SettingsPage: React.FC = () => {
                     </div>
                 </header>
 
-                {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+                {toast && <Toast message={toast.message} type={toast.type} onDismiss={handleToastDismiss} />}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 lg:gap-8">
                     <div className="hidden md:block md:col-span-1 lg:col-span-1">{sidebarContent}</div>

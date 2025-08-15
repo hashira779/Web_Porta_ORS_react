@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { getDashboardData } from '../../api/api';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector, Legend } from 'recharts';
@@ -82,6 +82,17 @@ const Dashboard: React.FC = () => {
         staleTime: 1000 * 60 * 5,
     });
 
+    const sanitizedData = useMemo(() => {
+        return {
+            kpi: data?.kpi || { total_stations: 0, hds_volume: 0, ulg95_volume: 0, ulr91_volume: 0 },
+            charts: {
+                volume_by_product: data?.charts?.volume_by_product || [],
+                sales_by_payment: data?.charts?.sales_by_payment || [],
+            }
+        };
+    }, [data]);
+
+
     const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFilters(prev => {
@@ -119,13 +130,13 @@ const Dashboard: React.FC = () => {
             {loading && <div className="p-6 text-center text-gray-500 flex justify-center items-center h-96"><Spinner size="lg" /></div>}
             {isError && !loading && <div className="p-6 text-center text-red-500 bg-red-50 rounded-lg">Could not load dashboard data. Please try again.</div>}
 
-            {data && (
+            {!loading && !isError && data && (
                 <>
                     <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4" initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.1 } } }}>
-                        <KPICard title="Active Stations" value={data.kpi.total_stations} unit="Stations" icon={UsersIcon} />
-                        <KPICard title="HDS Volume" value={data.kpi.hds_volume} unit="Liters" icon={BeakerIcon} />
-                        <KPICard title="ULG95 Volume" value={data.kpi.ulg95_volume} unit="Liters" icon={FireIcon} />
-                        <KPICard title="ULR91 Volume" value={data.kpi.ulr91_volume} unit="Liters" icon={BeakerIcon} />
+                        <KPICard title="Active Stations" value={sanitizedData.kpi.total_stations} unit="Stations" icon={UsersIcon} />
+                        <KPICard title="HDS Volume" value={sanitizedData.kpi.hds_volume} unit="Liters" icon={BeakerIcon} />
+                        <KPICard title="ULG95 Volume" value={sanitizedData.kpi.ulg95_volume} unit="Liters" icon={FireIcon} />
+                        <KPICard title="ULR91 Volume" value={sanitizedData.kpi.ulr91_volume} unit="Liters" icon={BeakerIcon} />
                     </motion.div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -133,12 +144,12 @@ const Dashboard: React.FC = () => {
                             <h3 className="font-semibold text-lg text-gray-800 mb-2">Volume by Product</h3>
                             <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={data.charts.volume_by_product} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                                    <BarChart data={sanitizedData.charts.volume_by_product} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                         <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} />
                                         <YAxis stroke="#9CA3AF" fontSize={12} tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value as number)} />
                                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(239, 246, 255, 0.5)' }} />
                                         <Bar dataKey="value" name="Volume" radius={[5, 5, 0, 0]}>
-                                            {data.charts.volume_by_product.map((entry: ChartDataPoint, index: number) => (
+                                            {sanitizedData.charts.volume_by_product.map((entry: ChartDataPoint, index: number) => (
                                                 <Cell key={`cell-${index}`} fill={productColorMap[entry.name] || '#8884d8'} stroke={productColorMap[entry.name]} />
                                             ))}
                                         </Bar>
@@ -152,8 +163,10 @@ const Dashboard: React.FC = () => {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
+                                            // @ts-ignore ✨ ADD THIS COMMENT TO FIX THE ERROR
+                                            activeIndex={activeIndex}
                                             activeShape={renderActiveShape}
-                                            data={data.charts.sales_by_payment}
+                                            data={sanitizedData.charts.sales_by_payment}
                                             cx="50%"
                                             cy="50%"
                                             innerRadius={60}
@@ -162,7 +175,7 @@ const Dashboard: React.FC = () => {
                                             nameKey="name"
                                             onMouseEnter={onPieEnter}
                                         >
-                                            {data.charts.sales_by_payment.map((entry: ChartDataPoint, index: number) => (
+                                            {sanitizedData.charts.sales_by_payment.map((entry: ChartDataPoint, index: number) => (
                                                 <Cell key={`cell-${index}`} fill={paymentColors[index % paymentColors.length]} stroke={'#FFFFFF'} />
                                             ))}
                                         </Pie>

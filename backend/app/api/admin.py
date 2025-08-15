@@ -17,10 +17,16 @@ import pytz # <-- ADD THIS
 router = APIRouter()
 
 
-def get_current_admin_user(current_user: user_model.User = Depends(get_current_active_user)):
-    """Dependency to ensure the current user is an admin."""
-    if not current_user.role or current_user.role.name.lower() != 'admin':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not an admin")
+def get_current_admin_user(
+        current_user: user_model.User = Depends(get_current_active_user)
+):
+    """Dependency to ensure the current user is an admin or moderator."""
+    allowed_roles = ["admin", "moderator"]
+    if not current_user.role or current_user.role.name.lower() not in allowed_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized"
+        )
     return current_user
 
 

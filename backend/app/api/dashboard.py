@@ -62,7 +62,7 @@ def get_dashboard_data(
                 total_stations_count = station_count_result._mapping['total_stations']
 
         # If a non-admin user has no stations assigned, return early
-        if user_role != 'admin' and not station_ids:
+        if user_role not in ['admin', 'moderator'] and not station_ids:
             return {"kpi": {"total_stations": 0}, "charts": {}}
 
         # If a user has stations, add them to the filter clause
