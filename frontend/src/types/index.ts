@@ -165,6 +165,45 @@ export interface Sale {
     MAT_ID: string | null;
     PAYMENT: string | null;
     SHIFT_ID: number | null;
+    MAT_Name: string | null;
     total_valume: number;
     total_amount: number;
+}
+
+export interface IStationInfo {
+    id: number;
+    station_id: string;
+    station_name: string;     // FIX: The property is 'Province' (capital P)
+    active?: number | null;
+
+    // FIX: These are now nested objects, not just IDs
+    am_control?: IAMControl | null;
+    supporter?: ISupporter | null;
+    province?: IProvince | null;
+
+    // We still need the IDs for the form dropdowns
+    am_control_id?: number | null;
+    supporter_id?: number | null;
+    province_id?: string | null;
+
+    // Other fields from your model
+    AM_Control?: string | null;
+    Operating?: number | null;
+    FleetCardStatus?: number | null;
+    POSUsing?: number | null;
+    area_id?: number | null;
+}
+export interface IAMControl {
+    id: number;
+    name: string;
+}
+
+export interface ISupporter {
+    id: number;
+    supporter_name: string;
+}
+
+export interface IProvince {
+    id: string;
+    name: string;
 }

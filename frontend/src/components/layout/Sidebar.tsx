@@ -19,7 +19,8 @@ import {
     ShieldExclamationIcon,
     ChevronDownIcon,
     ChevronUpIcon,
-    ComputerDesktopIcon
+    ComputerDesktopIcon,
+    BuildingStorefrontIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -63,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         { to: "/assignments/stations", icon: MapPinIcon, label: "Station Assignments", permission: "assign_stations" },
         { to: "/sessions", icon: ShieldExclamationIcon, label: "Sessions", permission: "manage_sessions" },
         { to: "/webviewer", icon: ComputerDesktopIcon, label: "Web View", permission: "web_viewer" },
+        { to: "/station_info", icon: BuildingStorefrontIcon, label: "Station Info", permission: "station_info" },
         { to: "/notifications", icon: BellIcon, label: "Notifications", permission: "view_notifications" },
         { to: "/help", icon: QuestionMarkCircleIcon, label: "Help", permission: "all" }
     ];

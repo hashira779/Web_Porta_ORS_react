@@ -1,12 +1,15 @@
+# In main.py
+
 from fastapi import FastAPI
-from app.api import endpoints, admin, dashboard, reports ,stations, telegram,webview
+# Make sure to add 'station_info' to your imports
+from app.api import endpoints, admin, dashboard, reports, stations, telegram, webview, station_info,lookups
 
 app = FastAPI(
     title="Portal API",
     version="1.0.0"
 )
 
-# Include all the routers
+# Include all the existing routers
 app.include_router(endpoints.router, prefix="/api", tags=["Authentication & Users"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
@@ -14,6 +17,20 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(stations.router, prefix="/api/stations", tags=["stations"])
 app.include_router(telegram.router, prefix="/api/telegram", tags=["Telegram"])
 app.include_router(webview.router, prefix="/api", tags=["WebView Links"])
+
+
+# and gives them a dedicated tag in the API documentation.
+app.include_router(
+    station_info.router,
+    prefix="/api/admin/station-info",
+    tags=["Admin - Station Info"]
+)
+app.include_router(
+    lookups.router,
+    prefix="/api/lookups",
+    tags=["Lookups"]
+)
+# ===============================
 
 @app.get("/")
 def read_root():

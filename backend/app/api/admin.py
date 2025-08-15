@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from sqlalchemy.sql import text
@@ -289,17 +290,32 @@ def delete_area(area_id: int, db: Session = Depends(get_db), admin: user_model.U
     db.commit()
     return
 
+# This is the full code for the single endpoint that was causing the error.
+
 @router.put("/assignments/areas/{area_id}/managers", response_model=station_schema.Area, tags=["Admin - Assignments"])
-def assign_managers_to_area(area_id: int, payload: station_schema.ManagerAssignment, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
+def assign_managers_to_area(
+        area_id: int,
+        payload: station_schema.ManagerAssignment,
+        db: Session = Depends(get_db),
+        admin: user_model.User = Depends(get_current_admin_user)
+):
+    # This check prevents the error if the area was deleted, but the
+    # user's browser still had it in the list (stale data).
     area = db.get(station_model.Area, area_id)
     if not area:
-        raise HTTPException(status_code=404, detail="Area not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Area with id {area_id} not found."
+        )
+
+    # Your existing logic to find the managers and assign them to the area.
+    # This is the part that was triggering the INSERT into `user_areas`.
     managers = db.query(user_model.User).filter(user_model.User.id.in_(payload.manager_ids)).all()
     area.managers = managers
+
     db.commit()
     db.refresh(area)
     return area
-
 @router.put("/assignments/areas/{area_id}/stations", response_model=station_schema.Area, tags=["Admin - Assignments"])
 def assign_stations_to_area(area_id: int, payload: station_schema.StationAssignment, db: Session = Depends(get_db), admin: user_model.User = Depends(get_current_admin_user)):
     area = db.get(station_model.Area, area_id)
@@ -328,3 +344,42 @@ def assign_stations_to_owner(
     db.commit()
     db.refresh(user)
     return user
+
+
+class AreaUpdateRequest(BaseModel):
+    manager_ids: List[int] = []
+    station_ids: List[int] = []
+
+@router.put("/assignments/areas/{area_id}", response_model=station_schema.Area, tags=["Admin - Assignments"])
+def update_area_assignments(
+        area_id: int,
+        payload: AreaUpdateRequest,
+        db: Session = Depends(get_db),
+        admin: user_model.User = Depends(get_current_admin_user)
+):
+    area = db.query(station_model.Area).options(
+        joinedload(station_model.Area.managers),
+        joinedload(station_model.Area.stations)
+    ).filter(station_model.Area.id == area_id).first()
+
+    if not area:
+        raise HTTPException(status_code=404, detail="Area not found")
+
+    # Update Managers
+    if payload.manager_ids is not None:
+        managers = db.query(user_model.User).filter(user_model.User.id.in_(payload.manager_ids)).all()
+        area.managers = managers
+
+    # Update Stations
+    if payload.station_ids is not None:
+        db.query(station_model.Station).filter(
+            station_model.Station.area_id == area_id
+        ).update({"area_id": None})
+        if payload.station_ids:
+            db.query(station_model.Station).filter(
+                station_model.Station.id.in_(payload.station_ids)
+            ).update({"area_id": area_id}, synchronize_session=False)
+
+    db.commit()
+    db.refresh(area)
+    return area

@@ -137,7 +137,8 @@ export const adminUpdateWebViewLink = (linkId: number, data: Partial<Omit<WebVie
 // Delete a link
 export const adminDeleteWebViewLink = (linkId: number) =>
     api.delete(`/webview-links/${linkId}`);
-
+export const adminUpdateAreaAssignments = (areaId: number, data: { manager_ids: number[], station_ids: number[] }) =>
+    api.put<AreaDetail>(`/admin/assignments/areas/${areaId}`, data);
 
 export default api;
 

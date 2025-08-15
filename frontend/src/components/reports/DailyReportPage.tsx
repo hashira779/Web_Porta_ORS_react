@@ -3,7 +3,7 @@ import { getSalesDataByYear, searchStations } from '../../api/api';
 import { Sale, StationSuggestion } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import Spinner from '../common/CalSpin';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid } from 'recharts';
 import { ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon, FunnelIcon, ArrowDownTrayIcon, DocumentArrowDownIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -65,20 +65,29 @@ const Pagination: React.FC<{
     );
 };
 
+// --- Custom Tooltip for Charts ---
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+                <p className="font-semibold text-gray-800">{label}</p>
+                <p className="text-sm text-indigo-600">{`${payload[0].name}: ${new Intl.NumberFormat().format(payload[0].value)}`}</p>
+            </div>
+        );
+    }
+    return null;
+};
+
 
 const DailyReportPage: React.FC = () => {
-    // --- Get current user from our global AuthContext ---
     const { currentUser } = useAuth();
-
-    // --- State for this page's data and UI ---
     const [allData, setAllData] = useState<Sale[]>([]);
     const [year, setYear] = useState<string>('2025');
     const [dataLoading, setDataLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
-
-    // UI states
     const [filters, setFilters] = useState({ stationId: '', startDate: '', endDate: '' });
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Sale; direction: 'ascending' | 'descending' } | null>(null);
+    // --- UPDATED: Sort config now uses string for key to support pivoted columns ---
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>({ key: 'date_completed', direction: 'ascending' });
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState<number>(15);
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -87,7 +96,6 @@ const DailyReportPage: React.FC = () => {
     const [suggestions, setSuggestions] = useState<StationSuggestion[]>([]);
     const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
 
-    // --- Check for specific IN-PAGE permissions like filter and export ---
     const userPermissions = useMemo(() => {
         if (!currentUser) return { canExport: false, canFilter: false };
         const permissions = new Set(currentUser.role.permissions.map(p => p.name));
@@ -97,7 +105,6 @@ const DailyReportPage: React.FC = () => {
         };
     }, [currentUser]);
 
-    // --- Data fetching and processing logic ---
     useEffect(() => {
         if (stationSearchInput.length < 2) {
             setSuggestions([]);
@@ -120,7 +127,7 @@ const DailyReportPage: React.FC = () => {
         setAllData([]);
         getSalesDataByYear(year)
             .then(response => {
-                const salesData = response.data.map(d => ({
+                const salesData = response.data.map((d: any) => ({
                     ...d,
                     total_valume: Number(d.total_valume) || 0,
                     total_amount: Number(d.total_amount) || 0,
@@ -143,15 +150,9 @@ const DailyReportPage: React.FC = () => {
     const filteredData = useMemo(() => {
         let data = [...allData];
         if (userPermissions.canFilter) {
-            if (filters.stationId) {
-                data = data.filter(d => d.STATION_ID === filters.stationId);
-            }
-            if (filters.startDate) {
-                data = data.filter(d => new Date(d.date_completed) >= new Date(filters.startDate));
-            }
-            if (filters.endDate) {
-                data = data.filter(d => new Date(d.date_completed) <= new Date(filters.endDate));
-            }
+            if (filters.stationId) data = data.filter(d => d.STATION_ID === filters.stationId);
+            if (filters.startDate) data = data.filter(d => new Date(d.date_completed) >= new Date(filters.startDate));
+            if (filters.endDate) data = data.filter(d => new Date(d.date_completed) <= new Date(filters.endDate));
         }
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
@@ -162,9 +163,56 @@ const DailyReportPage: React.FC = () => {
         return data;
     }, [filters, allData, searchQuery, userPermissions.canFilter]);
 
-    // ... other data processing functions (sortedData, paginatedData, charts, exports) remain the same ...
+    // --- NEW: Logic to pivot sales data for the table ---
+    const pivotedData = useMemo(() => {
+        const groupedData = new Map<string, any>();
+
+        filteredData.forEach(sale => {
+            // Group by a unique transaction identifier, excluding product-specific details
+            const key = `${sale.date_completed}-${sale.STATION_ID}-${sale.SHIFT_ID}-${sale.ID_Type}`;
+
+            if (!groupedData.has(key)) {
+                groupedData.set(key, {
+                    ID_Type: sale.ID_Type,
+                    STATION_ID: sale.STATION_ID,
+                    STATION: sale.STATION,
+                    AM_Name: sale.AM_Name,
+                    province_name: sale.province_name,
+                    date_completed: sale.date_completed,
+                    PAYMENT: sale.PAYMENT,
+                    SHIFT_ID: sale.SHIFT_ID,
+                    HSD: 0,
+                    'ULG 95': 0,
+                    'ULR 91': 0,
+                    total_amount: 0,
+                });
+            }
+
+            const entry = groupedData.get(key);
+            entry.total_amount += sale.total_amount;
+
+            switch (sale.MAT_Name) {
+                case 'HSD':
+                    entry.HSD += sale.total_valume;
+                    break;
+                case 'ULG95':
+                    entry['ULG 95'] += sale.total_valume;
+                    break;
+                case 'ULR 91':
+                    entry['ULR 91'] += sale.total_valume;
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        return Array.from(groupedData.values());
+    }, [filteredData]);
+
+
+    // --- UPDATED: Sorting now operates on the new pivoted data structure ---
     const sortedData = useMemo(() => {
-        let sortableData = [...filteredData];
+        let sortableData = [...pivotedData];
         if (sortConfig !== null) {
             sortableData.sort((a, b) => {
                 const aValue = a[sortConfig.key];
@@ -177,7 +225,7 @@ const DailyReportPage: React.FC = () => {
             });
         }
         return sortableData;
-    }, [filteredData, sortConfig]);
+    }, [pivotedData, sortConfig]);
 
     const paginatedData = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -186,7 +234,7 @@ const DailyReportPage: React.FC = () => {
 
     const totalPages = Math.ceil(sortedData.length / itemsPerPage);
 
-    const requestSort = (key: keyof Sale) => {
+    const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
             direction = 'descending';
@@ -195,12 +243,13 @@ const DailyReportPage: React.FC = () => {
         setCurrentPage(1);
     };
 
+    // Chart data logic remains unchanged, operating on the original filtered data
     const volumeByProduct = useMemo(() => {
         const productMap = new Map<string, number>();
         filteredData.forEach(d => {
-            const matIdKey = d.MAT_ID === '500033' ? 'HDS' : d.MAT_ID === '500024' ? 'ULG95' : d.MAT_ID === '500014' ? 'ULR91' : 'Other';
-            const volume = productMap.get(matIdKey) || 0;
-            productMap.set(matIdKey, volume + d.total_valume);
+            const productName = (d as any).MAT_Name || 'Unknown';
+            const currentVolume = productMap.get(productName) || 0;
+            productMap.set(productName, currentVolume + d.total_valume);
         });
         return Array.from(productMap, ([name, value]) => ({ name, value }));
     }, [filteredData]);
@@ -215,22 +264,33 @@ const DailyReportPage: React.FC = () => {
         return Array.from(paymentMap, ([name, value]) => ({ name, value }));
     }, [filteredData]);
 
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
+    const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
-    const exportToCSV = () => {
-        const headers = Object.keys(allData[0] || {});
-        const csvContent = [
-            headers.join(','),
-            ...sortedData.map(row =>
-                headers.map(header => `"${String(row[header as keyof Sale] || '').replace(/"/g, '""')}"`).join(',')
-            )
-        ].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        saveAs(blob, `sales-report-${year}.csv`);
-    };
+    // --- UPDATED: Table columns now reflect the pivoted structure ---
+    const tableColumns: { key: string; label: string }[] = [
+        { key: 'ID_Type', label: 'ID Type' },
+        { key: 'STATION_ID', label: 'Station ID' },
+        { key: 'STATION', label: 'Station Name' },
+        { key: 'AM_Name', label: 'AM Name' },
+        { key: 'province_name', label: 'Province' },
+        { key: 'date_completed', label: 'Date' },
+        { key: 'PAYMENT', label: 'Payment' },
+        { key: 'SHIFT_ID', label: 'Shift' },
+        { key: 'HSD', label: 'HSD' },
+        { key: 'ULG 95', label: 'ULG95' },
+        { key: 'ULR 91', label: 'ULR91' },
+        { key: 'total_amount', label: 'Total Amount' },
+    ];
 
     const exportToExcel = () => {
-        const worksheet = XLSX.utils.json_to_sheet(sortedData);
+        const dataToExport = sortedData.map(row => {
+            const newRow: { [key: string]: any } = {};
+            tableColumns.forEach(col => {
+                newRow[col.label] = (row as any)[col.key];
+            });
+            return newRow;
+        });
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
         XLSX.writeFile(workbook, `sales-report-${year}.xlsx`);
@@ -238,12 +298,12 @@ const DailyReportPage: React.FC = () => {
 
     const exportToPDF = () => {
         const doc = new jsPDF();
-        const headers = Object.keys(allData[0] || {});
-        const data = sortedData.map(row => headers.map(header => String(row[header as keyof Sale] || '')));
+        const headers = tableColumns.map(col => col.label);
+        const data = sortedData.map(row => tableColumns.map(col => String((row as any)[col.key] || '')));
         doc.text(`Sales Report - ${year}`, 14, 16);
         autoTable(doc, {
             head: [headers], body: data, startY: 20,
-            styles: { fontSize: 8 }, headStyles: { fillColor: [59, 130, 246] }
+            styles: { fontSize: 8 }, headStyles: { fillColor: [79, 70, 229] }
         });
         doc.save(`sales-report-${year}.pdf`);
     };
@@ -280,8 +340,7 @@ const DailyReportPage: React.FC = () => {
                     <button
                         type="submit"
                         className="px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center"
-                        // --- UPDATED: Button is now also disabled if the user cannot filter ---
-                        disabled={dataLoading || !userPermissions.canFilter}
+                        disabled={dataLoading}
                     >
                         {dataLoading ? <Spinner size="sm" color="white" /> : 'Fetch Report'}
                     </button>
@@ -296,23 +355,17 @@ const DailyReportPage: React.FC = () => {
                                 value={stationSearchInput}
                                 onChange={e => {
                                     setStationSearchInput(e.target.value);
-                                    if (e.target.value === '') {
-                                        setFilters({ ...filters, stationId: '' });
-                                    }
+                                    if (e.target.value === '') setFilters({ ...filters, stationId: '' });
                                 }}
                                 placeholder="Type ID or Name..."
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
                             />
                             {isSuggestionsLoading && <Spinner size="xs" className="absolute right-3 top-9" />}
                             {suggestions.length > 0 && (
                                 <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                    {suggestions.map((station) => (
-                                        <li
-                                            key={station.station_ID}
-                                            onClick={() => handleSelectStation(station)}
-                                            className="px-3 py-2 cursor-pointer hover:bg-indigo-50 text-sm"
-                                        >
-                                            <span className="font-bold">{station.station_ID}</span> - {station.station_name}
+                                    {suggestions.map((s) => (
+                                        <li key={s.station_ID} onClick={() => handleSelectStation(s)} className="px-3 py-2 cursor-pointer hover:bg-indigo-50 text-sm">
+                                            <span className="font-bold">{s.station_ID}</span> - {s.station_name}
                                         </li>
                                     ))}
                                 </ul>
@@ -320,64 +373,64 @@ const DailyReportPage: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                            <input
-                                type="date"
-                                value={filters.startDate}
-                                onChange={e => setFilters({...filters, startDate: e.target.value})}
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
-                            />
+                            <input type="date" value={filters.startDate} onChange={e => setFilters({ ...filters, startDate: e.target.value })} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">End Date</label>
-                            <input
-                                type="date"
-                                value={filters.endDate}
-                                onChange={e => setFilters({...filters, endDate: e.target.value})}
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
-                            />
+                            <input type="date" value={filters.endDate} onChange={e => setFilters({ ...filters, endDate: e.target.value })} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" />
                         </div>
                     </div>
                 )}
-
-                {error && (
-                    <div className="mt-4 p-3 text-sm text-red-700 bg-red-50 rounded-md">
-                        {error}
-                    </div>
-                )}
+                {error && <div className="mt-4 p-3 text-sm text-red-700 bg-red-50 rounded-md">{error}</div>}
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="p-6 bg-white rounded-xl shadow-sm border h-80">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <div className="lg:col-span-3 p-6 bg-white rounded-xl shadow-sm border h-96 flex flex-col">
                     <h3 className="font-semibold text-gray-800 mb-4">Volume by Product</h3>
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={volumeByProduct}>
-                            <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} />
-                            <YAxis stroke="#9CA3AF" fontSize={12} tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value as number)} />
-                            <Tooltip
-                                cursor={{ fill: 'rgba(239, 246, 255, 0.5)' }}
-                                formatter={(value) => new Intl.NumberFormat('en').format(Number(value))}
-                            />
-                            <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]} />
+                        <BarChart data={volumeByProduct} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                            <defs>
+                                <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#818CF8" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.8}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                            <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#9CA3AF" fontSize={12} tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value as number)} tickLine={false} axisLine={false} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(239, 246, 255, 0.7)' }} />
+                            <Bar dataKey="value" name="Volume" fill="url(#colorUv)" radius={[4, 4, 0, 0]} barSize={40} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="p-6 bg-white rounded-xl shadow-sm border h-80">
-                    <h3 className="font-semibold text-gray-800 mb-4">Transactions by Payment</h3>
+                <div className="lg:col-span-2 p-6 bg-white rounded-xl shadow-sm border h-96 flex flex-col">
+                    <h3 className="font-semibold text-gray-800 mb-4">Transactions by Payment Method</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie
                                 data={salesByPayment}
                                 dataKey="value" nameKey="name" cx="50%" cy="50%"
-                                innerRadius={60} outerRadius={80} fill="#8884d8" paddingAngle={5}
-                                label={({ name, percent }) => `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`}
+                                innerRadius="60%" outerRadius="80%" fill="#8884d8" paddingAngle={5}
+                                labelLine={false}
+                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                                    if (percent === undefined || midAngle === undefined) return null;
+                                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                    const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
+                                    const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
+                                    return (
+                                        <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={14} fontWeight="bold">
+                                            {`${(percent * 100).toFixed(0)}%`}
+                                        </text>
+                                    );
+                                }}
                             >
                                 {salesByPayment.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <Tooltip formatter={(value) => [`${value} transactions`, 'Count']} />
-                            <Legend iconType="circle" />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }} />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
@@ -387,9 +440,7 @@ const DailyReportPage: React.FC = () => {
             <div className="p-6 bg-white rounded-xl shadow-sm border overflow-x-auto">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
                     <div className="relative w-full sm:w-64">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                        </div>
+                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                             type="text"
                             placeholder="Search all columns..."
@@ -398,7 +449,6 @@ const DailyReportPage: React.FC = () => {
                             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md"
                         />
                     </div>
-
                     <div className="flex items-center space-x-2 w-full sm:w-auto">
                         <div className="flex items-center">
                             <label htmlFor="itemsPerPage" className="mr-2 text-sm text-gray-700">Show:</label>
@@ -408,28 +458,22 @@ const DailyReportPage: React.FC = () => {
                                 onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                                 className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
                             >
-                                <option value="10">10</option>
-                                <option value="15">15</option>
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                                <option value="100">100</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
                                 <option value={sortedData.length}>All</option>
                             </select>
                         </div>
-
                         {userPermissions.canExport && (
                             <div className="relative">
                                 <button
                                     className="flex items-center px-3 py-2 border border-gray-300 rounded-md"
                                     onClick={() => { document.getElementById('export-menu')?.classList.toggle('hidden'); }}
                                 >
-                                    <ArrowDownTrayIcon className="h-5 w-5 mr-1" />
-                                    Export
+                                    <ArrowDownTrayIcon className="h-5 w-5 mr-1" /> Export
                                 </button>
                                 <div id="export-menu" className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-                                    <button onClick={exportToCSV} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">
-                                        <DocumentTextIcon className="h-4 w-4 mr-2" /> CSV
-                                    </button>
                                     <button onClick={exportToExcel} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">
                                         <DocumentArrowDownIcon className="h-4 w-4 mr-2 text-green-600" /> Excel
                                     </button>
@@ -441,20 +485,19 @@ const DailyReportPage: React.FC = () => {
                         )}
                     </div>
                 </div>
-
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                         <tr>
-                            {(Object.keys(allData[0] || {}) as Array<keyof Sale>).map((key) => (
+                            {tableColumns.map((col) => (
                                 <th
-                                    key={key}
-                                    onClick={() => requestSort(key)}
-                                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+                                    key={col.key}
+                                    onClick={() => requestSort(col.key)}
+                                    className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer"
                                 >
                                     <div className="flex items-center">
-                                        {key.replace(/_/g, ' ')}
-                                        {sortConfig?.key === key && (
+                                        {col.label}
+                                        {sortConfig?.key === col.key && (
                                             sortConfig.direction === 'ascending' ?
                                                 <ChevronUpIcon className="w-3 h-3 ml-1" /> :
                                                 <ChevronDownIcon className="w-3 h-3 ml-1" />
@@ -468,16 +511,16 @@ const DailyReportPage: React.FC = () => {
                         {paginatedData.length > 0 ? (
                             paginatedData.map((row, index) => (
                                 <tr key={index} className="hover:bg-gray-50">
-                                    {Object.values(row).map((val, i) => (
-                                        <td key={i} className="px-3 py-2 text-sm text-gray-700" title={String(val)}>
-                                            {typeof val === 'number' ? new Intl.NumberFormat().format(val) : String(val)}
+                                    {tableColumns.map(col => (
+                                        <td key={col.key} className="px-3 py-2 text-sm text-gray-700 whitespace-nowrap" title={String((row as any)[col.key])}>
+                                            {typeof (row as any)[col.key] === 'number' ? new Intl.NumberFormat().format((row as any)[col.key] as number) : String((row as any)[col.key] || '')}
                                         </td>
                                     ))}
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={Object.keys(allData[0] || {}).length} className="px-3 py-2 text-center text-sm text-gray-500">
+                                <td colSpan={tableColumns.length} className="px-3 py-4 text-center text-sm text-gray-500">
                                     {dataLoading ? 'Loading data...' : 'No data available'}
                                 </td>
                             </tr>
@@ -485,14 +528,11 @@ const DailyReportPage: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-
                 {paginatedData.length > 0 && (
                     <div className="mt-4 flex flex-col sm:flex-row justify-between items-center">
                         <div className="text-sm text-gray-700 mb-2 sm:mb-0">
                             Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                            <span className="font-medium">
-                                {Math.min(currentPage * itemsPerPage, sortedData.length)}
-                            </span>{' '}
+                            <span className="font-medium">{Math.min(currentPage * itemsPerPage, sortedData.length)}</span>{' '}
                             of <span className="font-medium">{sortedData.length}</span> results
                         </div>
                         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />

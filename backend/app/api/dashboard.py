@@ -1,3 +1,5 @@
+# In app/api/dashboard.py
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -38,9 +40,10 @@ def get_dashboard_data(
                 return {"kpi": {"total_stations": 0}, "charts": {}}
 
             area_ids = [area.id for area in current_user.managed_areas]
-            stations_in_areas = db.query(station_model.Station.station_ID).filter(
+            # FIX #1: Changed station_ID to station_id
+            stations_in_areas = db.query(station_model.Station.station_id).filter(
                 station_model.Station.area_id.in_(area_ids),
-                station_model.Station.active == True # Only count active stations
+                station_model.Station.active == True
             ).all()
             station_ids = [s[0] for s in stations_in_areas if s[0]]
             total_stations_count = len(station_ids)
@@ -49,23 +52,20 @@ def get_dashboard_data(
             if not current_user.owned_stations:
                 return {"kpi": {"total_stations": 0}, "charts": {}}
 
-            # Filter for active stations directly in the list
             active_owned_stations = [s for s in current_user.owned_stations if s.active]
-            station_ids = [station.station_ID for station in active_owned_stations if station.station_ID]
+            # FIX #2: Changed station.station_ID to station.station_id
+            station_ids = [station.station_id for station in active_owned_stations if station.station_id]
             total_stations_count = len(station_ids)
 
         else: # This is the Admin role
-            # Admin sees the count of ALL active stations
             station_count_query = text("SELECT COUNT(id) as total_stations FROM station_info WHERE active = 1")
             station_count_result = db.execute(station_count_query).first()
             if station_count_result:
                 total_stations_count = station_count_result._mapping['total_stations']
 
-        # If a non-admin user has no stations assigned, return early
         if user_role not in ['admin', 'moderator'] and not station_ids:
             return {"kpi": {"total_stations": 0}, "charts": {}}
 
-        # If a user has stations, add them to the filter clause
         if station_ids:
             station_filter_clause = "AND sales.STATION_ID IN :station_ids"
             params["station_ids"] = station_ids
@@ -74,14 +74,12 @@ def get_dashboard_data(
         base_select_fields = "MAT_ID, total_valume, PAYMENT, date_completed, ID_type, STATION_ID"
         available_years = [2023, 2024, 2025]
 
-        # Determine which yearly tables to query
         years_to_query = [year] if year and year in available_years else available_years
         union_parts = [
             f"(SELECT {base_select_fields} FROM summary_station_{y}_materialized)"
             for y in years_to_query
         ]
         if not union_parts:
-            # If no valid year is provided or available, return with the station count
             return {"kpi": {"total_stations": total_stations_count}, "charts": {}}
 
         base_query = " UNION ALL ".join(union_parts)
@@ -102,7 +100,6 @@ def get_dashboard_data(
         if where_clauses:
             where_string = f"WHERE {' AND '.join(where_clauses)} {station_filter_clause}"
         elif station_filter_clause:
-            # Apply station filter even if no other filters are present
             where_string = f"WHERE 1=1 {station_filter_clause}"
 
         # --- 4. Execute Sales Data Queries ---
