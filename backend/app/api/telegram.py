@@ -3,14 +3,14 @@ import io
 import logging
 import telegram
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from app.db.session import get_db
 from app.models import user as user_model, station as station_model, role as role_model
 from app.schemas.telegram import SendReportRequest
 from app.core.security import get_current_active_user
-from sqlalchemy.orm import joinedload
 
+# It's recommended to load secrets like this from environment variables, not hardcode them.
 TELEGRAM_BOT_TOKEN = "8173994331:AAEirobZkclbSooy5CvZcwkLSQkw0rxLxw0"
 
 logging.basicConfig(level=logging.INFO)
@@ -70,29 +70,23 @@ async def send_telegram_report(
         try:
             output = io.StringIO()
             writer = csv.writer(output)
-
-            # CHANGE 1: Added "Station ID" to the CSV header
             writer.writerow(["Date", "Station ID", "Station Name", "Volume (Liters)", "Amount", "Payment Type"])
 
             station_ids = []
             if user.role.name.lower() == 'area':
-                station_ids = [s.station_ID for area in user.managed_areas for s in area.stations if s.station_ID]
+                # FIX #1: Changed station_ID to station_id
+                station_ids = [s.station_id for area in user.managed_areas for s in area.stations if s.station_id]
             elif user.role.name.lower() == 'owner':
-                station_ids = [s.station_ID for s in user.owned_stations if s.station_ID]
+                # FIX #2: Changed station_ID to station_id
+                station_ids = [s.station_id for s in user.owned_stations if s.station_id]
 
             if not station_ids:
                 logger.warning(f"Skipping user '{user.username}' as they have no assigned stations.")
                 continue
 
-            # CHANGE 2: Added STATION_ID to the SELECT statement
             sales_query = text(f"""
                 SELECT
-                    STATION_ID,
-                    station_name,
-                    total_valume,
-                    COMPLETED_TS,
-                    PAYMENT,
-                    total_amount
+                    STATION_ID, station_name, total_valume, COMPLETED_TS, PAYMENT, total_amount
                 FROM ({base_query_for_union}) as sales_data
                 WHERE COMPLETED_TS BETWEEN :start_date AND :end_date AND STATION_ID IN :station_ids
                 ORDER BY COMPLETED_TS, station_name
@@ -105,11 +99,10 @@ async def send_telegram_report(
             if not sales_results:
                 writer.writerow(["No raw data found for your stations in this period.", "", "", "", "", ""])
             else:
-                # CHANGE 3: Added the station_ID value to each row
                 for row in sales_results:
                     writer.writerow([
                         row._mapping['COMPLETED_TS'],
-                        row._mapping['STATION_ID'], # Added Station ID here
+                        row._mapping['STATION_ID'],
                         row._mapping['station_name'],
                         f"{row._mapping['total_valume'] or 0:,.2f}",
                         f"{row._mapping['total_amount'] or 0:,.2f}",
@@ -124,7 +117,6 @@ async def send_telegram_report(
 
             await bot.send_message(chat_id=user.user_id, text=f"📊 Raw Data Report Attached\nPeriod: {report_request.start_date} to {report_request.end_date}")
             await bot.send_document(chat_id=user.user_id, document=csv_file, filename=file_name)
-
             successful_deliveries += 1
 
         except Exception as e:
@@ -132,8 +124,6 @@ async def send_telegram_report(
             logger.error(f"Failed to send report to user '{user.username}' (ID: {user.user_id}): {error_message}")
             failed_deliveries.append({"username": user.username, "user_id": user.user_id, "error": "Database query or internal error."})
 
-
     total_attempts = len(users_to_notify)
     summary_message = f"Dispatch completed. Sent: {successful_deliveries}/{total_attempts}. Failed: {len(failed_deliveries)}."
-
     return { "message": summary_message, "success_count": successful_deliveries, "failures": failed_deliveries }
