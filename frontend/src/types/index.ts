@@ -165,6 +165,7 @@ export interface Sale {
     MAT_ID: string | null;
     PAYMENT: string | null;
     SHIFT_ID: number | null;
+    MAT_Name: string | null;
     total_valume: number;
     total_amount: number;
 }
