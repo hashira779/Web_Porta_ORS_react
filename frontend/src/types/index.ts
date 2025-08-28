@@ -21,7 +21,7 @@ export interface Area {
 
 export interface StationInfo {
     id: number;
-    station_ID: string;
+    station_id: string;
     station_name: string;
     owners: User[];
 }

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// 1. Import useNavigate for redirection and a new icon
+import { useNavigate } from 'react-router-dom';
 import { adminGetAllUsers, adminUpdateUser, adminCreateUser, adminDeleteUser, adminGetRoles } from '../../api/api';
 import { User, Role, UserFormData, UserCreate, UserUpdate } from '../../types';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -17,19 +19,21 @@ import {
     ChevronRightIcon,
     CheckCircleIcon as CheckCircleOutline,
     XCircleIcon as XCircleOutline,
+    ArrowLeftOnRectangleIcon, // New Icon
 } from '@heroicons/react/24/outline';
 import {
     ExclamationCircleIcon,
     ChartBarIcon,
     UserGroupIcon,
-    ChartPieIcon
+    ChartPieIcon,
+    ShieldExclamationIcon, // New Icon
 } from '@heroicons/react/24/solid';
 import UserModal from './UserModal';
 import CalSpin from '../common/CalSpin';
 import ConfirmationModal from '../common/ConfirmationModal';
 import { useNotificationStore } from '../../hooks/useNotification';
 
-// A simple component for the stat cards
+// StatCard component (no change)
 const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: number | string; color: string }> = ({ icon, title, value, color }) => (
     <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -49,6 +53,9 @@ const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: number |
 
 
 const UserManagement: React.FC = () => {
+    // 2. Initialize the navigate function
+    const navigate = useNavigate();
+
     const [users, setUsers] = useState<User[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
     const [loading, setLoading] = useState(true);
@@ -70,8 +77,13 @@ const UserManagement: React.FC = () => {
                 setRoles(rolesRes.data);
                 setError(null);
             })
-            .catch(err => {
-                setError("Failed to fetch user data. Please try again later.");
+            // 3. Update the .catch block to specifically check for 403 errors
+            .catch((err: any) => {
+                if (err.response && err.response.status === 403) {
+                    setError("Access Denied: You don't have permission to view this page.");
+                } else {
+                    setError("Failed to fetch user data. Please try again later.");
+                }
                 console.error("Error fetching data:", err);
             })
             .finally(() => setLoading(false));
@@ -81,6 +93,7 @@ const UserManagement: React.FC = () => {
         fetchUsersAndRoles();
     }, []);
 
+    // ... (handleSave, handleDelete, confirmDelete, handleSearchChange, and useMemo hooks have no changes)
     const handleSave = async (formData: UserFormData) => {
         try {
             if (formData.id) {
@@ -101,17 +114,13 @@ const UserManagement: React.FC = () => {
             throw err;
         }
     };
-
     const handleDelete = (user: User) => {
         setUserToDelete(user);
         setIsConfirmModalOpen(true);
     };
-
     const confirmDelete = () => {
         if (!userToDelete) return;
-
         setIsConfirmModalOpen(false);
-
         adminDeleteUser(userToDelete.id)
             .then(() => {
                 showNotification(`User '${userToDelete.username}' deleted successfully.`, 'success');
@@ -125,28 +134,23 @@ const UserManagement: React.FC = () => {
                 setUserToDelete(null);
             });
     };
-
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
         setCurrentPage(1);
     };
-
     const { activeUsersCount, inactiveUsersCount, barChartData, roleDistribution } = useMemo(() => {
         const active = users.filter(user => user.is_active).length;
         const inactive = users.length - active;
         const barData = [{ name: 'Users', Active: active, Inactive: inactive }];
-
         const roleCounts = users.reduce((acc, user) => {
             const roleName = user.role?.name || 'Unassigned';
             acc[roleName] = (acc[roleName] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
-
         const roleData = Object.keys(roleCounts).map(name => ({
             name,
             value: roleCounts[name],
         }));
-
         return {
             activeUsersCount: active,
             inactiveUsersCount: inactive,
@@ -154,9 +158,7 @@ const UserManagement: React.FC = () => {
             roleDistribution: roleData,
         };
     }, [users]);
-
     const DONUT_CHART_COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff'];
-
     const filteredUsers = useMemo(() => users.filter(user => user.username.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase())), [users, searchTerm]);
     const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
     const currentUsers = useMemo(() => {
@@ -165,35 +167,56 @@ const UserManagement: React.FC = () => {
         return filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
     }, [filteredUsers, currentPage, usersPerPage]);
 
+
     if (loading) {
         return <div className="flex justify-center items-center h-64"><CalSpin size="lg" /></div>;
     }
 
+    // 4. Update the error display to show a 'Go to Login' button for auth errors
     if (error) {
+        const isAuthError = error.includes('Access Denied');
         return (
             <div className="text-center py-12">
-                <ExclamationCircleIcon className="mx-auto h-16 w-16 text-red-500" />
-                <h3 className="mt-4 text-xl font-semibold text-gray-900">Error loading users</h3>
+                {isAuthError ? (
+                    <ShieldExclamationIcon className="mx-auto h-16 w-16 text-yellow-500" />
+                ) : (
+                    <ExclamationCircleIcon className="mx-auto h-16 w-16 text-red-500" />
+                )}
+                <h3 className="mt-4 text-xl font-semibold text-gray-900">
+                    {isAuthError ? "Authorization Required" : "Error Loading Users"}
+                </h3>
                 <p className="mt-2 text-sm text-gray-600">{error}</p>
-                <button
-                    onClick={fetchUsersAndRoles}
-                    className="mt-6 inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700"
-                >
-                    <ArrowPathIcon className="w-4 h-4 mr-2" />
-                    Retry
-                </button>
+                {isAuthError ? (
+                    <button
+                        onClick={() => navigate('/login')}
+                        className="mt-6 inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        <ArrowLeftOnRectangleIcon className="w-5 h-5 mr-2" />
+                        Go to Login
+                    </button>
+                ) : (
+                    <button
+                        onClick={fetchUsersAndRoles}
+                        className="mt-6 inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        <ArrowPathIcon className="w-4 h-4 mr-2" />
+                        Retry
+                    </button>
+                )}
             </div>
         );
     }
 
+    // The rest of the return JSX (the main page content) has no changes
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-6 p-4 sm:p-6">
+            {/* ... Stat Cards ... */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard icon={<UserGroupIcon className="w-6 h-6 text-indigo-600" />} title="Total Users" value={users.length} color="bg-indigo-100" />
                 <StatCard icon={<CheckCircleOutline className="w-6 h-6 text-green-600" />} title="Active Users" value={activeUsersCount} color="bg-green-100" />
                 <StatCard icon={<XCircleOutline className="w-6 h-6 text-red-600" />} title="Inactive Users" value={inactiveUsersCount} color="bg-red-100" />
             </div>
-
+            {/* ... Charts ... */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-200/50">
                     <div className="flex items-center gap-3 mb-4">
@@ -242,7 +265,7 @@ const UserManagement: React.FC = () => {
                     </ResponsiveContainer>
                 </div>
             </div>
-
+            {/* ... Table ... */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -283,7 +306,6 @@ const UserManagement: React.FC = () => {
                         <thead className="bg-gray-50">
                         <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">User</th>
-                            {/* // NEW: Added Telegram ID column header, hidden on smaller screens */}
                             <th scope="col" className="hidden lg:table-cell px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Telegram ID</th>
                             <th scope="col" className="hidden md:table-cell px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Email</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Role</th>
@@ -306,7 +328,6 @@ const UserManagement: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    {/* // NEW: Added Telegram ID data cell */}
                                     <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                         {user.user_id || 'N/A'}
                                     </td>
@@ -337,7 +358,6 @@ const UserManagement: React.FC = () => {
                             ))
                         ) : (
                             <tr>
-                                {/* // UPDATED: Changed colspan to 6 to account for the new column */}
                                 <td colSpan={6} className="text-center py-16 px-6">
                                     <UsersIcon className="mx-auto h-12 w-12 text-gray-300" />
                                     <p className="mt-2 text-sm font-medium text-gray-500">No users found</p>
@@ -365,7 +385,7 @@ const UserManagement: React.FC = () => {
                     </div>
                 )}
             </motion.div>
-
+            {/* ... Modals ... */}
             <AnimatePresence>
                 {isUserModalOpen && (
                     <UserModal

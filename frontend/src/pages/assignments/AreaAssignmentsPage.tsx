@@ -48,7 +48,8 @@ const StationCard: React.FC<{ station: StationInfo; status: 'assigned' | 'availa
       <motion.div layout="position" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200/80">
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-800 text-sm truncate">{station.station_name}</p>
-          <p className="text-xs text-gray-500">ID: {station.station_ID || station.id}</p>
+          {/* --- UPDATED to use lowercase 'station_id' --- */}
+          <p className="text-xs text-gray-500">Station ID: {station.station_id || 'N/A'}</p>
         </div>
         <button onClick={() => onToggle(station.id)} disabled={status === 'conflicted'} className={`ml-4 flex-shrink-0 flex items-center text-xs font-bold px-3 py-1.5 rounded-md transition-all duration-200 ${currentStyle.button}`}>
           {currentStyle.icon}
@@ -75,7 +76,7 @@ const AreaAssignmentsPage: React.FC = () => {
   const [editingArea, setEditingArea] = useState<AreaDetail | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [areaToDelete, setAreaToDelete] = useState<AreaDetail | null>(null);
-  const [showAssignedManagers, setShowAssignedManagers] = useState(false); // New state to toggle visibility
+  const [showAssignedManagers, setShowAssignedManagers] = useState(false);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => { setToast({ message, type }); }, []);
   const handleToastDismiss = useCallback(() => { setToast(null); }, []);
@@ -129,7 +130,8 @@ const AreaAssignmentsPage: React.FC = () => {
       }
     });
     const searchLower = stationSearch.toLowerCase();
-    const available = allStations.filter(station => !assignedStationIds.has(station.id) && (station.station_name.toLowerCase().includes(searchLower) || (station.station_ID || '').toLowerCase().includes(searchLower) || station.id.toString().includes(searchLower)));
+    // --- UPDATED search logic to use lowercase 'station_id' ---
+    const available = allStations.filter(station => !assignedStationIds.has(station.id) && (station.station_name.toLowerCase().includes(searchLower) || (station.station_id || '').toLowerCase().includes(searchLower) || station.id.toString().includes(searchLower)));
     const assigned = allStations.filter(station => assignedStationIds.has(station.id));
     return { assignedStationsList: assigned, availableStationsList: available, stationIsAssignedToOtherArea: assignedToOtherMap };
   }, [allStations, areas, selectedArea, assignedStationIds, stationSearch]);
@@ -211,12 +213,18 @@ const AreaAssignmentsPage: React.FC = () => {
     const assignedStationDbIds = new Set(areas.flatMap(area => area.stations.map(s => s.id)));
     const validStationIdsToAdd = new Set<number>();
     const skippedIds = new Set<string>();
+
     ids.forEach(inputId => {
-      const station = allStations.find(s => s.id.toString() === inputId || s.station_ID === inputId);
+      // --- UPDATED import logic to find by lowercase 'station_id' ---
+      const station = allStations.find(s => s.station_id === inputId);
+
       if (station && !assignedStationDbIds.has(station.id)) {
         validStationIdsToAdd.add(station.id);
-      } else { skippedIds.add(inputId); }
+      } else {
+        skippedIds.add(inputId);
+      }
     });
+
     setAssignedStationIds(prev => new Set([...Array.from(prev), ...validStationIdsToAdd]));
     setImportIds('');
     if (validStationIdsToAdd.size > 0) showToast(`Added ${validStationIdsToAdd.size} new stations.`, 'success');
@@ -231,7 +239,7 @@ const AreaAssignmentsPage: React.FC = () => {
       const text = e.target?.result as string;
       const idsFromFile = text.split(/[,\s\n]+/).filter(Boolean);
       setImportIds(idsFromFile.join(', '));
-      showToast(`Loaded ${idsFromFile.length} IDs from file. Click 'Add' to assign.`, 'success'); // Fixed: Added 'success' as the second argument
+      showToast(`Loaded ${idsFromFile.length} IDs from file. Click 'Add' to assign.`, 'success');
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
