@@ -19,6 +19,7 @@ import SessionManagementPage from './pages/admin/SessionManagementPage';
 import WebViewer from './pages/webViewer/WebViewPage';
 import WebViewLinkManager from './pages/webViewer/controller/WebViewLinkManager';
 import { StationInfoAdminPage } from './pages/stationInfo/StationInfoAdminPage';
+import ApiKeyManagementPage from './pages/keyApi/ApiKeyManagementPage';
 
 /* ---------------- Access Denied ---------------- */
 const AccessDenied: React.FC = () => (
@@ -89,6 +90,7 @@ const routeConfig = [
   { path: '/webviewer', element: <WebViewer />, permissions: 'web_viewer' },
   { path: '/webviewer/admin', element: <WebViewLinkManager />, permissions: 'web_viewer' },
   { path: '/station_info', element: <StationInfoAdminPage />, permissions: 'station_info' },
+  { path: '/api_key', element: <ApiKeyManagementPage />, permissions: 'key_api' },
   { path: '/', element: <Navigate to="/dashboard" replace /> },
 ];
 

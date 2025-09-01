@@ -34,6 +34,6 @@ class User(Base):
     token_version = Column(Integer, nullable=False, server_default='0', default=0)
     role_id = Column(Integer, ForeignKey('roles.id'))
     role = relationship('Role', back_populates='users')
-
+    api_keys = relationship("APIKey", back_populates="creator")
     managed_areas = relationship("Area", secondary=user_area_association, back_populates="managers")
     owned_stations = relationship("Station", secondary=user_station_association, back_populates="owners")
