@@ -151,7 +151,7 @@ export interface WebViewLink {
 }
 
 export interface StationSuggestion {
-    station_ID: string;
+    station_id: string;
     station_name: string;
 }
 

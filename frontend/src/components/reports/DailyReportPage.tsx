@@ -143,14 +143,14 @@ const DailyReportPage: React.FC = () => {
 
     const handleSelectStation = (station: StationSuggestion) => {
         setStationSearchInput(station.station_name);
-        setFilters({ ...filters, stationId: station.station_ID });
+        setFilters({ ...filters, stationId: station.station_id });
         setSuggestions([]);
     };
 
     const filteredData = useMemo(() => {
         let data = [...allData];
         if (userPermissions.canFilter) {
-            if (filters.stationId) data = data.filter(d => d.STATION_ID === filters.stationId);
+            if (filters.stationId) data = data.filter(d => String(d.STATION_ID) === filters.stationId);
             if (filters.startDate) data = data.filter(d => new Date(d.date_completed) >= new Date(filters.startDate));
             if (filters.endDate) data = data.filter(d => new Date(d.date_completed) <= new Date(filters.endDate));
         }
@@ -364,8 +364,8 @@ const DailyReportPage: React.FC = () => {
                             {suggestions.length > 0 && (
                                 <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                     {suggestions.map((s) => (
-                                        <li key={s.station_ID} onClick={() => handleSelectStation(s)} className="px-3 py-2 cursor-pointer hover:bg-indigo-50 text-sm">
-                                            <span className="font-bold">{s.station_ID}</span> - {s.station_name}
+                                        <li key={s.station_id} onClick={() => handleSelectStation(s)} className="px-3 py-2 cursor-pointer hover:bg-indigo-50 text-sm">
+                                            <span className="font-bold">{s.station_id}</span> - {s.station_name}
                                         </li>
                                     ))}
                                 </ul>

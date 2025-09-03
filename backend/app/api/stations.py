@@ -28,12 +28,12 @@ def search_stations(
 
     # Query the station_info table for matches in either ID or name
     stations = db.query(
-        station_model.Station.station_ID,
+        station_model.Station.station_id,
         station_model.Station.station_name
     ).filter(
         station_model.Station.active == True, # Optional: only show active stations
         or_(
-            station_model.Station.station_ID.ilike(search_term),
+            station_model.Station.station_id.ilike(search_term),
             station_model.Station.station_name.ilike(search_term)
         )
     ).limit(10).all()

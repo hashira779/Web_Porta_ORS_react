@@ -10,7 +10,6 @@ from app.api import (
     webview,
     station_info,
     lookups,
-    external,
     api_keys_admin,
     am_reports
 )
@@ -40,17 +39,6 @@ app.include_router(
     lookups.router,
     prefix="/api/lookups",
     tags=["Lookups"]
-)
-
-# ===============================
-# NEW Routers for External API and Key Management
-# ===============================
-
-# This adds the '/external/sales/{year}' endpoint
-app.include_router(
-    external.router,
-    prefix="/api",
-    tags=["External API"]
 )
 
 # This adds the '/admin/api-keys' endpoints for admins
