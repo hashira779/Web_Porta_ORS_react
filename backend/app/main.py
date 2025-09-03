@@ -11,7 +11,8 @@ from app.api import (
     station_info,
     lookups,
     external,
-    api_keys_admin
+    api_keys_admin,
+    am_reports
 )
 from starlette.middleware.cors import CORSMiddleware
 
@@ -57,6 +58,11 @@ app.include_router(
     api_keys_admin.router,
     prefix="/api",
     tags=["Admin: API Keys"]
+)
+app.include_router(
+    am_reports.router,
+    prefix="/api",
+    tags=["AM External API"]
 )
 app.add_middleware(
     CORSMiddleware,

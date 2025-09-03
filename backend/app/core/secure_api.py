@@ -1,49 +1,47 @@
-# In: app/core/secure_api.py
-
-from fastapi import Depends, HTTPException, Security, status
-from fastapi.security import APIKeyHeader
-from sqlalchemy.orm import Session
-
+from fastapi import Depends, HTTPException, Security, status, Request
+from sqlalchemy.orm import Session, joinedload
 from app.db.session import get_db
-from app.crud import crud_api_key
+from app.models import api_key as api_key_model, user as user_model
+from fastapi.security import APIKeyHeader
 
-# Define the header we expect the key to be in. auto_error=False means we handle the error message ourselves.
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def require_api_key_with_scope(required_scope: str):
-    """
-    This is a dependency factory. It creates a dependency that will:
-    1. Look for the X-API-Key header.
-    2. Check the database for a key that matches.
-    3. Verify the key is active AND has the required scope.
-    """
     def get_key(
+            request: Request,
             api_key: str = Security(api_key_header),
             db: Session = Depends(get_db)
     ):
         if not api_key:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="API Key required"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API Key required")
 
-        # Check if the key exists in the database
-        db_key = crud_api_key.get_api_key_by_key(db, key=api_key)
+        # --- [DEBUGGING CODE] ---
+        print("--- DEBUG: API Key Received in Header ---")
+        print(f"'{api_key}'")
+        # --- [END DEBUGGING CODE] ---
 
-        # Raise an error if the key is not found or is marked as inactive
+        db_key = db.query(api_key_model.APIKey).options(
+            joinedload(api_key_model.APIKey.owner).joinedload(user_model.User.role)
+        ).filter(api_key_model.APIKey.key == api_key).first()
+
+        # --- [DEBUGGING CODE] ---
+        print("--- DEBUG: Result from Database ---")
+        if db_key:
+            print(f"Found Key ID: {db_key.id}")
+            print(f"Is Active: {db_key.is_active}")
+            print(f"Scope: '{db_key.scope}'")
+        else:
+            print("No matching key was found in the database.")
+        print("------------------------------------")
+        # --- [END DEBUGGING CODE] ---
+
         if not db_key or not db_key.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or inactive API Key"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or inactive API Key")
 
-        # Raise an error if the key does not have the correct scope for this endpoint
         if db_key.scope != required_scope:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="API Key does not have permission for this resource"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"The provided key does not have the required '{required_scope}' scope.")
+
+        request.state.api_key_owner = db_key.owner
 
         return db_key
-
     return get_key

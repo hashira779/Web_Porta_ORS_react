@@ -1,6 +1,3 @@
-# In app/models/station.py
-
-# UPDATED: Make sure all these are imported from sqlalchemy
 from sqlalchemy import (
     Column,
     Integer,
@@ -12,8 +9,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base_class import Base
-
-# Assuming these are defined in app/models/user.py
 from .user import user_area_association, user_station_association
 
 
@@ -28,7 +23,7 @@ class Area(Base):
 class Station(Base):
     __tablename__ = 'station_info'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    station_id = Column("station_id", String(11), nullable=False, unique=True)
+    station_id = Column("station_ID", String(11), nullable=False, unique=True) # Corrected column name
     station_name = Column(String(500))
     Province = Column("Province", String(255))
     AM_Control = Column(Text)
@@ -45,10 +40,10 @@ class Station(Base):
     area = relationship('Area', back_populates='stations')
     owners = relationship("User", secondary=user_station_association, back_populates="owned_stations")
 
-    # BEST PRACTICE: Add relationships for the new Foreign Keys
-    am_control = relationship("AMControl")
-    supporter = relationship("Supporter")
-    province = relationship("Province")
+    # [MODIFIED] Added back_populates for explicit bi-directional linking
+    am_control = relationship("AMControl", back_populates="stations")
+    supporter = relationship("Supporter", back_populates="stations")
+    province = relationship("Province", back_populates="stations")
 
 
 class AMControl(Base):
@@ -58,6 +53,9 @@ class AMControl(Base):
     email = Column(String(100), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    # [ADDED] Relationship back to Station
+    stations = relationship("Station", back_populates="am_control")
+
 
 class Supporter(Base):
     __tablename__ = 'supporter'
@@ -66,9 +64,15 @@ class Supporter(Base):
     email = Column(String(100), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    # [ADDED] Relationship back to Station
+    stations = relationship("Station", back_populates="supporter")
+
 
 class Province(Base):
     __tablename__ = 'provinces'
     id = Column(String(10), primary_key=True)
     name = Column(String(255))
     description = Column(Text)
+
+    # [ADDED] Relationship back to Station
+    stations = relationship("Station", back_populates="province")

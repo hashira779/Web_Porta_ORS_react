@@ -1,46 +1,33 @@
 import  api  from '../api/api';
-import { ApiKey } from '../types/apiKey';
+import { ApiKey, UserType } from '../types/apiKey'; // Import User type
 
-/**
- * Fetches all API keys for the logged-in admin.
- */
+// --- [NEW] Function to get all users ---
+export const getAllUsers = async (): Promise<UserType[]> => {
+    const response = await api.get('/admin/users-list');
+    return response.data;
+};
+
 export const getApiKeys = async (): Promise<ApiKey[]> => {
-    // CORRECTED PATH: Removed '/api' prefix
     const response = await api.get('/admin/api-keys');
     return response.data;
 };
 
-/**
- * Creates a new API key with a specified name and scope.
- */
-export const createApiKey = async (name: string, scope: string): Promise<ApiKey> => {
-    // CORRECTED PATH: Removed '/api' prefix
-    const response = await api.post('/admin/api-keys', { name, scope });
+// --- [MODIFIED] To accept an optional userId ---
+export const createApiKey = async (name: string, scope: string, userId?: number | null): Promise<ApiKey> => {
+    const payload = { name, scope, user_id: userId };
+    const response = await api.post('/admin/api-keys', payload);
     return response.data;
 };
 
-/**
- * Toggles the active status of an API key.
- */
+// ... (rest of the service functions are unchanged)
 export const toggleApiKeyStatus = async (keyId: string): Promise<ApiKey> => {
-    // CORRECTED PATH: Removed '/api' prefix
     const response = await api.patch(`/admin/api-keys/${keyId}/toggle-status`);
     return response.data;
 };
-
-/**
- * Updates the name of an API key.
- */
 export const updateApiKeyName = async (keyId: string, name: string): Promise<ApiKey> => {
-    // CORRECTED PATH: Removed '/api' prefix
     const response = await api.put(`/admin/api-keys/${keyId}`, { name });
     return response.data;
 };
-
-/**
- * Permanently deletes an API key.
- */
 export const deleteApiKey = async (keyId: string): Promise<void> => {
-    // CORRECTED PATH: Removed '/api' prefix
     await api.delete(`/admin/api-keys/${keyId}`);
 };
