@@ -9,3 +9,5 @@ email-validator
 python-multipart
 pytz
 python-telegram-bot
+pandas
+openpyxl

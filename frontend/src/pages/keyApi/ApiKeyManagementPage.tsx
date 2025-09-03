@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useCallback, PropsWithChildren, Fragment, useMemo } from 'react';
-import { ApiKey, UserType } from '../../types/apiKey';
+import { ApiKey, UserType, APIScope } from '../../types/apiKey';
 import * as apiKeyService from '../../services/apiKeyService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Transition } from '@headlessui/react';
-import { KeyRound, Copy, Check, AlertTriangle, Plus, Trash2, Edit, Power, PowerOff, MoreVertical, Server, Search, User, Zap } from 'lucide-react';
+import { KeyRound, Copy, Check, AlertTriangle, Plus, Trash2, Edit, Power, PowerOff, MoreVertical, Server, Search, User, Zap, Shield } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
-// Reusable Modal Component (Unchanged)
-const Modal: React.FC<PropsWithChildren<{ onClose: () => void, title: string, icon?: React.ReactNode }>> = ({ children, onClose, title, icon }) => (
+// Reusable Modal Component
+interface ModalProps {
+    children: React.ReactNode;
+    onClose: () => void;
+    title: string;
+    icon?: React.ReactNode;
+}
+
+const Modal = ({ children, onClose, title, icon }: ModalProps) => (
     <motion.div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         initial={{ opacity: 0 }}
@@ -34,20 +41,20 @@ const Modal: React.FC<PropsWithChildren<{ onClose: () => void, title: string, ic
 
 // Reusable Skeleton Loader for List Items
 const SkeletonLoader: React.FC = () => (
-    <div className="bg-white p-4 sm:px-6 animate-pulse">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 min-w-0">
+    <li className="p-4 sm:px-6 animate-pulse">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
+            <div className="col-span-2 md:col-span-1 flex items-center gap-4">
                 <div className="h-10 w-10 rounded-full bg-gray-200"></div>
                 <div className="space-y-2">
                     <div className="h-4 w-32 bg-gray-200 rounded"></div>
                     <div className="h-3 w-40 bg-gray-200 rounded"></div>
                 </div>
             </div>
-            <div className="hidden md:block h-6 w-20 bg-gray-200 rounded-full"></div>
-            <div className="hidden sm:block h-4 w-24 bg-gray-200 rounded"></div>
-            <div className="h-8 w-8 bg-gray-200 rounded-full"></div>
+            <div className="hidden md:flex items-center gap-3"><div className="h-8 w-8 rounded-full bg-gray-200"></div><div className="h-4 w-28 bg-gray-200 rounded"></div></div>
+            <div className="hidden sm:block"><div className="h-6 w-20 bg-gray-200 rounded-full"></div></div>
+            <div className="flex justify-end"><div className="h-8 w-8 bg-gray-200 rounded-full"></div></div>
         </div>
-    </div>
+    </li>
 );
 
 const ApiKeyManagementPage: React.FC = () => {
@@ -59,13 +66,17 @@ const ApiKeyManagementPage: React.FC = () => {
     const [selectedKey, setSelectedKey] = useState<ApiKey | null>(null);
     const [keyName, setKeyName] = useState("");
     const [selectedUserId, setSelectedUserId] = useState<string>("");
+    const [selectedScope, setSelectedScope] = useState<APIScope>(APIScope.ExternalSales);
     const [filter, setFilter] = useState("");
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [fetchedKeys, fetchedUsers] = await Promise.all([apiKeyService.getApiKeys(), apiKeyService.getAllUsers()]);
+            const [fetchedKeys, fetchedUsers] = await Promise.all([
+                apiKeyService.getApiKeys(),
+                apiKeyService.getAllUsers()
+            ]);
             setKeys(fetchedKeys);
             setUsers(fetchedUsers);
             setError(null);
@@ -82,12 +93,13 @@ const ApiKeyManagementPage: React.FC = () => {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         const userIdToAssign = selectedUserId ? parseInt(selectedUserId, 10) : null;
-        const promise = apiKeyService.createApiKey(keyName, 'external_sales', userIdToAssign).then(newKey => {
+        const promise = apiKeyService.createApiKey(keyName, selectedScope, userIdToAssign).then(newKey => {
             setKeys(prev => [newKey, ...prev]);
             setSelectedKey(newKey);
             setModalState('new-key');
             setKeyName("");
             setSelectedUserId("");
+            setSelectedScope(APIScope.ExternalSales);
         });
         toast.promise(promise, { loading: 'Creating key...', success: <b>Key created!</b>, error: <b>Could not create key.</b> });
     };
@@ -158,7 +170,6 @@ const ApiKeyManagementPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* List Header */}
                     <div className="px-4 sm:px-6 py-3 bg-gray-50/75 grid grid-cols-2 md:grid-cols-4 gap-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         <div className="col-span-2 md:col-span-1">Key Name</div>
                         <div className="hidden md:block">Assigned To</div>
@@ -181,26 +192,22 @@ const ApiKeyManagementPage: React.FC = () => {
                                 {filteredKeys.map((key) => (
                                     <motion.li layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} key={key.id} className="p-4 sm:px-6 hover:bg-gray-50">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
-                                            {/* Key Name & Partial Key */}
                                             <div className="col-span-2 md:col-span-1 min-w-0">
                                                 <p className="text-sm font-medium text-gray-900 truncate">{key.name || "Untitled Key"}</p>
                                                 <p className="text-sm text-gray-500 font-mono truncate">{key.key.substring(0, 8)}••••••••</p>
                                             </div>
-                                            {/* Assigned To */}
                                             <div className="hidden md:flex items-center gap-3 text-sm text-gray-700">
                                                 <div className="h-8 w-8 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-100 text-gray-500">{key.owner ? <User size={16}/> : <Zap size={16}/>}</div>
                                                 {key.owner?.username || 'System Key'}
                                             </div>
-                                            {/* Status */}
                                             <div className="hidden sm:block">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${key.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{key.is_active ? 'Active' : 'Deactivated'}</span>
                                             </div>
-                                            {/* Actions Menu */}
                                             <div className="flex justify-end">
                                                 <Menu as="div" className="relative">
-                                                    <Menu.Button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"><MoreVertical size={20}/></Menu.Button>
+                                                    <Menu.Button className="p-2 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"><MoreVertical size={20}/></Menu.Button>
                                                     <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
-                                                        <Menu.Items className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                                                        <Menu.Items className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-30">
                                                             <Menu.Item>{({ active }) => (<button onClick={() => copyToClipboard(key.id, key.key)} className={`${active && 'bg-gray-100'} w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-700`}>{copiedStates[key.id] ? <Check size={16}/> : <Copy size={16}/>} Copy Full Key</button>)}</Menu.Item>
                                                             <Menu.Item>{({ active }) => (<button onClick={() => { setSelectedKey(key); setModalState('edit'); }} className={`${active && 'bg-gray-100'} w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-700`}><Edit size={16}/> Edit Name</button>)}</Menu.Item>
                                                             <Menu.Item>{({ active }) => (<button onClick={() => handleToggleStatus(key)} className={`${active && 'bg-gray-100'} w-full text-left flex items-center gap-3 px-4 py-2 text-sm ${key.is_active ? 'text-gray-700' : 'text-green-600'}`}>{key.is_active ? <PowerOff size={16}/> : <Power size={16}/>} {key.is_active ? 'Deactivate' : 'Activate'}</button>)}</Menu.Item>
@@ -220,10 +227,92 @@ const ApiKeyManagementPage: React.FC = () => {
             </div>
 
             <AnimatePresence>
-                {modalState === 'create' && (<Modal title="Generate New Key" icon={<Plus size={20}/>} onClose={closeModal}><form onSubmit={handleCreate} className="space-y-6"><div><label htmlFor="keyName" className="block text-sm font-medium text-gray-700">Key Name</label><input type="text" id="keyName" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g., 'Production Server Key'" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required /></div><div><label htmlFor="assignUser" className="block text-sm font-medium text-gray-700">Assign to User (Optional)</label><select id="assignUser" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"><option value="">System Key (Unassigned)</option>{users.map(user => (<option key={user.id} value={user.id}>{user.username}</option>))}</select></div><div className="flex justify-end gap-3 pt-2"><button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button><button type="submit" className="px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">Create Key</button></div></form></Modal>)}
-                {modalState === 'edit' && selectedKey && (<Modal title="Edit Key Name" icon={<Edit size={20}/>} onClose={closeModal}><form onSubmit={handleUpdateName} className="space-y-4"><div><label htmlFor="editKeyName" className="block text-sm font-medium text-gray-700">Key Name</label><input type="text" id="editKeyName" value={selectedKey.name || ""} onChange={(e) => setSelectedKey({ ...selectedKey, name: e.target.value })} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required /></div><div className="flex justify-end gap-3 pt-2"><button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button><button type="submit" className="px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">Save Changes</button></div></form></Modal>)}
-                {modalState === 'new-key' && selectedKey && (<Modal title="API Key Generated" icon={<KeyRound size={20}/>} onClose={() => {setModalState(null); setSelectedKey(null);}}><p className="text-sm text-gray-600">Please copy this key. For security, you will not be able to see it again.</p><div className="mt-4 relative bg-gray-100 p-3 rounded-md flex items-center justify-between border"><code className="text-gray-800 text-sm break-all font-mono">{selectedKey.key}</code><button onClick={() => copyToClipboard('new-key', selectedKey.key)} className="p-2 rounded-md hover:bg-gray-200">{copiedStates['new-key'] ? <Check size={16} className="text-green-500"/> : <Copy size={16} className="text-gray-500"/>}</button></div></Modal>)}
-                {modalState === 'confirm-delete' && selectedKey && (<Modal title="Delete API Key" icon={<AlertTriangle size={20}/>} onClose={closeModal}><p className="text-sm text-gray-600">Are you sure you want to permanently delete the key named "{selectedKey.name || 'Untitled Key'}"? This action cannot be undone.</p><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button><button type="button" onClick={handleDelete} className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">Delete Key</button></div></Modal>)}
+                {modalState === 'create' && (
+                    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal}></motion.div>
+                        <div className="relative z-50">
+                            <Modal title="Generate New Key" icon={<Plus size={20}/>} onClose={closeModal}>
+                                <form onSubmit={handleCreate} className="space-y-6">
+                                    <div>
+                                        <label htmlFor="keyName" className="block text-sm font-medium text-gray-700">Key Name</label>
+                                        <input type="text" id="keyName" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g., 'Production Server Key'" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="scope" className="block text-sm font-medium text-gray-700">Permissions (Scope)</label>
+                                        <select id="scope" value={selectedScope} onChange={(e) => setSelectedScope(e.target.value as APIScope)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                            <option value={APIScope.ExternalSales}>General Sales Data</option>
+                                            <option value={APIScope.AMSalesReport}>AM Sales Report</option>
+                                            <option value={APIScope.AMSummaryReport}>AM Summary Report</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="assignUser" className="block text-sm font-medium text-gray-700">Assign to User (Optional)</label>
+                                        <select id="assignUser" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                            <option value="">System Key (Unassigned)</option>
+                                            {users.map(user => (<option key={user.id} value={user.id}>{user.username}</option>))}
+                                        </select>
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-2">
+                                        <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+                                        <button type="submit" className="px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">Create Key</button>
+                                    </div>
+                                </form>
+                            </Modal>
+                        </div>
+                    </div>
+                )}
+
+                {modalState === 'edit' && selectedKey && (
+                    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal}></motion.div>
+                        <div className="relative z-50">
+                            <Modal title="Edit Key Name" icon={<Edit size={20}/>} onClose={closeModal}>
+                                <form onSubmit={handleUpdateName} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="editKeyName" className="block text-sm font-medium text-gray-700">Key Name</label>
+                                        <input type="text" id="editKeyName" value={selectedKey.name || ""} onChange={(e) => setSelectedKey({ ...selectedKey, name: e.target.value })} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-2">
+                                        <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+                                        <button type="submit" className="px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">Save Changes</button>
+                                    </div>
+                                </form>
+                            </Modal>
+                        </div>
+                    </div>
+                )}
+
+                {modalState === 'new-key' && selectedKey && (
+                    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => {setModalState(null); setSelectedKey(null);}}></motion.div>
+                        <div className="relative z-50">
+                            <Modal title="API Key Generated" icon={<KeyRound size={20}/>} onClose={() => {setModalState(null); setSelectedKey(null);}}>
+                                <p className="text-sm text-gray-600">Please copy this key. For security, you will not be able to see it again.</p>
+                                <div className="mt-4 relative bg-gray-100 p-3 rounded-md flex items-center justify-between border">
+                                    <code className="text-gray-800 text-sm break-all font-mono">{selectedKey.key}</code>
+                                    <button onClick={() => copyToClipboard('new-key', selectedKey.key)} className="p-2 rounded-md hover:bg-gray-200">
+                                        {copiedStates['new-key'] ? <Check size={16} className="text-green-500"/> : <Copy size={16} className="text-gray-500"/>}
+                                    </button>
+                                </div>
+                            </Modal>
+                        </div>
+                    </div>
+                )}
+
+                {modalState === 'confirm-delete' && selectedKey && (
+                    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal}></motion.div>
+                        <div className="relative z-50">
+                            <Modal title="Delete API Key" icon={<AlertTriangle size={20}/>} onClose={closeModal}>
+                                <p className="text-sm text-gray-600">Are you sure you want to permanently delete the key named "{selectedKey.name || 'Untitled Key'}"? This action cannot be undone.</p>
+                                <div className="flex justify-end gap-3 pt-4">
+                                    <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+                                    <button type="button" onClick={handleDelete} className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">Delete Key</button>
+                                </div>
+                            </Modal>
+                        </div>
+                    </div>
+                )}
             </AnimatePresence>
         </div>
     );
